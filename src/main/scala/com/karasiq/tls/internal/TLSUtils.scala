@@ -2,7 +2,7 @@ package com.karasiq.tls.internal
 
 import com.karasiq.tls.{TLS, TLSKeyStore}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAPrivateKeyParameters, ECPrivateKeyParameters, RSAKeyParameters}
+import org.bouncycastle.crypto.params._
 import org.bouncycastle.crypto.tls._
 
 import scala.collection.GenTraversableOnce
@@ -24,11 +24,14 @@ object TLSUtils {
       case _: RSAKeyParameters ⇒
         SignatureAlgorithm.rsa
 
-      case _: ECPrivateKeyParameters ⇒
+      case _: ECKeyParameters ⇒
+        SignatureAlgorithm.ecdsa
+
+      case _: DSAKeyParameters ⇒
         SignatureAlgorithm.dsa
 
-      case _: DSAPrivateKeyParameters ⇒
-        SignatureAlgorithm.dsa
+      case _ ⇒
+        SignatureAlgorithm.anonymous
     }
 
     new SignatureAndHashAlgorithm(hash, sign)

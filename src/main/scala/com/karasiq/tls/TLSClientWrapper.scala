@@ -41,12 +41,15 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
           if (chain.nonEmpty) {
             onInfo(s"Server certificate chain: ${chain.map(_.getSubject).mkString("; ")}")
             if (address != null &&  !verifier.isHostValid(chain.head, address.getHostName)) {
-              throw new TLSException(s"Certificate hostname not match: ${address.getHostName}")
+              val exc = new TlsFatalAlert(AlertDescription.bad_certificate)
+              onError(s"Certificate hostname not match: ${address.getHostName}", exc)
+              throw exc
             }
           }
 
           if (!verifier.isChainValid(chain)) {
-            throw new TLSException(s"Invalid server certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}")
+            val exc = new TlsFatalAlert(AlertDescription.bad_certificate)
+            onError(s"Invalid server certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}", exc)
           }
         }
       }

@@ -23,7 +23,7 @@ object TLSKeyStore {
   }
 
   sealed trait KeyEntry extends Entry with CertificateEntry {
-    def keyPair(password: String = defaultPassword()): AsymmetricCipherKeyPair
+    def keyPair(password: String = null): AsymmetricCipherKeyPair
   }
 
   def keyStore(path: String, password: String): KeyStore = {
@@ -47,7 +47,7 @@ object TLSKeyStore {
   }
 }
 
-class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore()) {
+class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePass: String = TLSKeyStore.defaultPassword()) {
   def contains(alias: String): Boolean = {
     keyStore.containsAlias(alias)
   }
@@ -73,7 +73,9 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore()) {
 
           override def certificate: Certificate = getCertificate(a)
 
-          override def keyPair(password: String): AsymmetricCipherKeyPair = getKey(a, password)
+          override def keyPair(password: String): AsymmetricCipherKeyPair = {
+            getKey(a, if (password == null) keyStorePass else password)
+          }
 
           override def alias: String = a
         }

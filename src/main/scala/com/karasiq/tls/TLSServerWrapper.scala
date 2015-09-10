@@ -7,10 +7,10 @@ import com.karasiq.tls.TLS.CertificateChain
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
 import org.bouncycastle.crypto.tls._
 
-class TLSServerWrapper(certificate: TLS.CertificateKey, clientAuth: Boolean = false, verifier: TLSCertificateVerifier = null) extends TLSConnectionWrapper {
+class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier: TLSCertificateVerifier = null) extends TLSConnectionWrapper {
   require(verifier != null || !clientAuth, "No client certificate verifier provided")
 
-  @throws(classOf[TLSException])
+  @throws(classOf[TlsFatalAlert])
   protected def onClientAuth(clientCertificate: CertificateChain): Unit = {
     val chain: List[TLS.Certificate] = clientCertificate.getCertificateList.toList
     if (chain.nonEmpty) {
@@ -18,7 +18,9 @@ class TLSServerWrapper(certificate: TLS.CertificateKey, clientAuth: Boolean = fa
     }
 
     if (clientAuth && !verifier.isChainValid(chain)) {
-      throw new TLSException(s"Invalid client certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}")
+      val exc = new TlsFatalAlert(AlertDescription.bad_certificate)
+      onError(s"Invalid client certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}", exc)
+      throw exc
     }
   }
 
@@ -41,8 +43,26 @@ class TLSServerWrapper(certificate: TLS.CertificateKey, clientAuth: Boolean = fa
         onHandshakeFinished()
       }
 
-      override def getRSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server credentials") {
-        new DefaultTlsSignerCredentials(context, certificate.certificateChain, certificate.key.getPrivate, TLSUtils.signatureAlgorithm(certificate.key.getPrivate))
+      private def credentials(cert: TLS.CertificateKey): TlsSignerCredentials = {
+        new DefaultTlsSignerCredentials(context, cert.certificateChain, cert.key.getPrivate, TLSUtils.signatureAlgorithm(cert.key.getPrivate))
+      }
+
+      override def getRSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server RSA credentials") {
+        keySet.rsa.fold(super.getRSASignerCredentials)(credentials)
+      }
+
+      override def getECDSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server ECDSA credentials") {
+        keySet.ecdsa.fold(super.getECDSASignerCredentials)(credentials)
+      }
+
+      override def getDSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server DSA credentials") {
+        keySet.dsa.fold(super.getDSASignerCredentials)(credentials)
+      }
+
+      override def getRSAEncryptionCredentials: TlsEncryptionCredentials = wrapException("Could not provide server RSA encryption credentials") {
+        keySet.rsa.fold(super.getRSAEncryptionCredentials) { cert ⇒
+          new DefaultTlsEncryptionCredentials(context, cert.certificateChain, cert.key.getPrivate)
+        }
       }
 
       override def getCertificateRequest: CertificateRequest = {
