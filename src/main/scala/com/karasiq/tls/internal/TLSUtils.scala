@@ -66,7 +66,7 @@ object TLSUtils {
 
   def isInAuthorities(chain: TLS.CertificateChain, certificateRequest: CertificateRequest): Boolean = {
     chain.getCertificateList.exists { cert ⇒
-      certificateRequest.getCertificateAuthorities.contains(cert.getSubject)
+      certificateRequest.getCertificateAuthorities.contains(cert.getSubject) || certificateRequest.getCertificateAuthorities.contains(cert.getIssuer)
     }
   }
 

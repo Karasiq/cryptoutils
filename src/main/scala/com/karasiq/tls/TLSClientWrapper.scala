@@ -28,12 +28,11 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
       override def getAuthentication: TlsAuthentication = new TlsAuthentication {
         override def getClientCredentials(certificateRequest: CertificateRequest): TlsCredentials = wrapException("Could not provide client credentials") {
           getClientCertificate(certificateRequest)
-            .map(ck ⇒ new DefaultTlsSignerCredentials(context, ck.certificateChain, ck.key.getPrivate)) // Ignores certificateRequest data
+            .map(ck ⇒ new DefaultTlsSignerCredentials(context, ck.certificateChain, ck.key.getPrivate, TLSUtils.signatureAlgorithm(ck.key.getPrivate))) // Ignores certificateRequest data
             .orNull
         }
 
         override def notifyServerCertificate(serverCertificate: TLS.CertificateChain): Unit = wrapException("Server certificate error") {
-          val verifier: TLSCertificateVerifier = new TLSCertificateVerifier()
           val chain: List[TLS.Certificate] = serverCertificate.getCertificateList.toList
 
           if (chain.nonEmpty) {
