@@ -7,8 +7,6 @@ import java.security.SecureRandom
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
 import org.bouncycastle.crypto.tls._
 
-import scala.util.control.Exception
-
 class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddress = null) extends TLSConnectionWrapper {
   protected def getClientCertificate(certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = None
 
@@ -40,7 +38,7 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
 
           if (chain.nonEmpty) {
             onInfo(s"Server certificate chain: ${chain.map(_.getSubject).mkString("; ")}")
-            if (address != null &&  !verifier.isHostValid(chain.head, address.getHostName)) {
+            if (address != null && !verifier.isHostValid(chain.head, address.getHostName)) {
               val exc = new TlsFatalAlert(AlertDescription.bad_certificate)
               onError(s"Certificate hostname not match: ${address.getHostName}", exc)
               throw exc
@@ -55,7 +53,7 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
       }
     }
 
-    Exception.allCatch.withApply(exc ⇒ throw new TLSException(s"Error connecting to server: $address", exc)) {
+    wrapException(s"Error connecting to server: $address") {
       protocol.connect(client)
       new SocketChannelWrapper(connection, protocol)
     }
