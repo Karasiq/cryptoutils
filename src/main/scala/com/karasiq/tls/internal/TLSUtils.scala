@@ -64,6 +64,13 @@ object TLSUtils {
     new CertificateRequest(certificateTypes, defaultSignatureAlgorithms(protocolVersion), authoritiesOf(trustStore))
   }
 
+  def certificateFor(keySet: TLS.KeySet, certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = {
+    val types = certificateRequest.getCertificateTypes.toSet
+    keySet.ecdsa.filter(c ⇒ types.contains(ClientCertificateType.ecdsa_sign) && isInAuthorities(c.certificateChain, certificateRequest))
+      .orElse(keySet.rsa.filter(c ⇒ types.contains(ClientCertificateType.rsa_sign) && isInAuthorities(c.certificateChain, certificateRequest)))
+      .orElse(keySet.dsa.filter(c ⇒ types.contains(ClientCertificateType.dss_sign) && isInAuthorities(c.certificateChain, certificateRequest)))
+  }
+
   def isInAuthorities(chain: TLS.CertificateChain, certificateRequest: CertificateRequest): Boolean = {
     chain.getCertificateList.exists { cert ⇒
       certificateRequest.getCertificateAuthorities.contains(cert.getSubject) || certificateRequest.getCertificateAuthorities.contains(cert.getIssuer)
