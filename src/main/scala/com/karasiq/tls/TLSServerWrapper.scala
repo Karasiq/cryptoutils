@@ -18,8 +18,9 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
     }
 
     if (clientAuth && !verifier.isChainValid(chain)) {
-      val exc = new TlsFatalAlert(AlertDescription.bad_certificate)
-      onError(s"Invalid client certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}", exc)
+      val message = s"Invalid client certificate: ${chain.headOption.fold("<none>")(_.getSubject.toString)}"
+      val exc = new TlsFatalAlert(AlertDescription.bad_certificate, new TLSException(message))
+      onError(message, exc)
       throw exc
     }
   }

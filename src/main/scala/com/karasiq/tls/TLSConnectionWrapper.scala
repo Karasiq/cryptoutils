@@ -15,9 +15,11 @@ trait TLSConnectionWrapper {
 
   protected def wrapException[T](message: String)(f: ⇒ T): T = {
     val catcher = Exception.allCatch.withApply { exc ⇒
-      onError(message, exc)
       if (exc.isInstanceOf[TlsFatalAlert]) throw exc
-      else throw new TlsFatalAlert(AlertDescription.internal_error, new TLSException(message, exc))
+      else {
+        onError(message, exc)
+        throw new TlsFatalAlert(AlertDescription.internal_error, new TLSException(message, exc))
+      }
     }
     catcher(f)
   }
