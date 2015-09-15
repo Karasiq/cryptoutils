@@ -4,10 +4,11 @@ import java.nio.channels.SocketChannel
 
 import org.bouncycastle.crypto.tls.{AlertDescription, TlsFatalAlert}
 
+import scala.concurrent.Promise
 import scala.util.control.Exception
 
 trait TLSConnectionWrapper {
-  protected def onHandshakeFinished(): Unit  = { }
+  protected val handshake: Promise[Boolean] = Promise()
 
   protected def onError(message: String, exc: Throwable): Unit = { }
 
@@ -15,6 +16,7 @@ trait TLSConnectionWrapper {
 
   protected def wrapException[T](message: String)(f: ⇒ T): T = {
     val catcher = Exception.allCatch.withApply { exc ⇒
+      handshake.tryFailure(exc)
       if (exc.isInstanceOf[TlsFatalAlert]) throw exc
       else {
         onError(message, exc)

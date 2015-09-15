@@ -7,6 +7,10 @@ import java.security.SecureRandom
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
 import org.bouncycastle.crypto.tls._
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
 class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddress = null) extends TLSConnectionWrapper {
   protected def getClientCertificate(certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = None
 
@@ -22,7 +26,7 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
       }
 
       override def notifyHandshakeComplete(): Unit = {
-        onHandshakeFinished()
+        handshake.trySuccess(true)
       }
 
       override def getAuthentication: TlsAuthentication = new TlsAuthentication {
@@ -55,9 +59,11 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
       }
     }
 
-    wrapException(s"Error connecting to server: $address") {
+    val socket = wrapException(s"Error connecting to server: $address") {
       protocol.connect(client)
       new SocketChannelWrapper(connection, protocol)
     }
+    Await.result(handshake.future, 3 minutes) // Wait for handshake
+    socket
   }
 }

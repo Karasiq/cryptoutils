@@ -7,6 +7,10 @@ import com.karasiq.tls.TLS.CertificateChain
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
 import org.bouncycastle.crypto.tls._
 
+import scala.concurrent.Await
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
 class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier: TLSCertificateVerifier = null) extends TLSConnectionWrapper {
   require(verifier != null || !clientAuth, "No client certificate verifier provided")
 
@@ -41,7 +45,7 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
       }
 
       override def notifyHandshakeComplete(): Unit = {
-        onHandshakeFinished()
+        handshake.trySuccess(true)
       }
 
       private def credentials(cert: TLS.CertificateKey): TlsSignerCredentials = {
@@ -79,9 +83,11 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
       }
     }
 
-    wrapException("Error accepting connection") {
+    val socket = wrapException("Error accepting connection") {
       protocol.accept(server)
       new SocketChannelWrapper(connection, protocol)
     }
+    Await.result(handshake.future, 3 minutes) // Wait for handshake
+    socket
   }
 }
