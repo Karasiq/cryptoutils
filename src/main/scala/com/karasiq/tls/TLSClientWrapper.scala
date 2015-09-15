@@ -37,8 +37,8 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
 
           if (chain.nonEmpty) {
             onInfo(s"Server certificate chain: ${chain.map(_.getSubject).mkString("; ")}")
-            if (address != null && !verifier.isHostValid(chain.head, address.getHostName)) {
-              val message = s"Certificate hostname not match: ${address.getHostName}"
+            if (address != null && !verifier.isHostValid(chain.head, address.getHostString)) {
+              val message = s"Certificate hostname not match: ${address.getHostString}"
               val exc = new TlsFatalAlert(AlertDescription.bad_certificate, new TLSException(message))
               onError(message, exc)
               throw exc
