@@ -46,6 +46,7 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
 
       override def notifyHandshakeComplete(): Unit = {
         handshake.trySuccess(true)
+        onInfo("Selected cipher suite: " + TLSUtils.cipherSuiteAsString(selectedCipherSuite))
       }
 
       private def credentials(cert: TLS.CertificateKey): TlsSignerCredentials = {

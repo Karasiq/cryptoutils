@@ -27,6 +27,7 @@ class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddr
 
       override def notifyHandshakeComplete(): Unit = {
         handshake.trySuccess(true)
+        onInfo("Selected cipher suite: " + TLSUtils.cipherSuiteAsString(selectedCipherSuite))
       }
 
       override def getAuthentication: TlsAuthentication = new TlsAuthentication {

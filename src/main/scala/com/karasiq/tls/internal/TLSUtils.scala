@@ -77,15 +77,25 @@ object TLSUtils {
     }
   }
 
+  def stringAsCipherSuite(cs: String): Int = {
+    Try(classOf[CipherSuite].getField(cs).getInt(null))
+      .getOrElse(throw new IllegalArgumentException("Invalid cipher suite: " + cs))
+  }
+
+  def cipherSuiteAsString(cs: Int): String = {
+    val fields = classOf[CipherSuite].getFields
+    fields
+      .find(f ⇒ f.getType == Integer.TYPE && f.getInt(null) == cs)
+      .fold(throw new IllegalArgumentException("Unknown cipher suite: " + cs))(_.getName)
+  }
+
   /**
    * Loads cipher suites from config
    * @return BC cipher suites array
    */
   def defaultCipherSuites(): Array[Int] = {
     val config = openConfig()
-    val cipherSuites = config.getStringList("cipher-suites").flatMap { cs ⇒
-      Try(classOf[CipherSuite].getField(cs).getInt(null)).toOption
-    }
+    val cipherSuites = config.getStringList("cipher-suites").map(stringAsCipherSuite)
     require(cipherSuites.nonEmpty, "Cipher suites is empty")
     cipherSuites.toArray
   }

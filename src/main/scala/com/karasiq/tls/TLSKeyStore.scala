@@ -1,6 +1,6 @@
 package com.karasiq.tls
 
-import java.io.FileInputStream
+import java.io.{FileInputStream, InputStream}
 import java.security.KeyStore
 
 import com.karasiq.tls.TLS.{Certificate, CertificateChain}
@@ -26,13 +26,16 @@ object TLSKeyStore {
     def keyPair(password: String = null): AsymmetricCipherKeyPair
   }
 
-  def keyStore(path: String, password: String): KeyStore = {
+  def keyStore(inputStream: InputStream, password: String): KeyStore = {
     val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+    keyStore.load(inputStream, password.toCharArray)
+    keyStore
+  }
 
+  def keyStore(path: String, password: String): KeyStore = {
     val inputStream = new FileInputStream(path)
     Exception.allCatch.andFinally(inputStream.close()) {
-      keyStore.load(inputStream, password.toCharArray)
-      keyStore
+      keyStore(inputStream, password)
     }
   }
 
