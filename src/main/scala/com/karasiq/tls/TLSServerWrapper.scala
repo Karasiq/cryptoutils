@@ -49,20 +49,22 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
         onInfo("Selected cipher suite: " + TLSUtils.cipherSuiteAsString(selectedCipherSuite))
       }
 
-      private def credentials(cert: TLS.CertificateKey): TlsSignerCredentials = {
-        new DefaultTlsSignerCredentials(context, cert.certificateChain, cert.key.getPrivate, TLSUtils.signatureAlgorithm(cert.key.getPrivate))
+      private def credentials(certOption: Option[TLS.CertificateKey]): TlsSignerCredentials = {
+        certOption.fold(throw new TLSException("No suitable signer credentials found")) { cert ⇒
+          new DefaultTlsSignerCredentials(context, cert.certificateChain, cert.key.getPrivate, TLSUtils.signatureAlgorithm(cert.key.getPrivate))
+        }
       }
 
       override def getRSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server RSA credentials") {
-        keySet.rsa.fold(super.getRSASignerCredentials)(credentials)
+        credentials(keySet.rsa)
       }
 
       override def getECDSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server ECDSA credentials") {
-        keySet.ecdsa.fold(super.getECDSASignerCredentials)(credentials)
+        credentials(keySet.ecdsa)
       }
 
       override def getDSASignerCredentials: TlsSignerCredentials = wrapException("Could not provide server DSA credentials") {
-        keySet.dsa.fold(super.getDSASignerCredentials)(credentials)
+        credentials(keySet.dsa)
       }
 
       override def getRSAEncryptionCredentials: TlsEncryptionCredentials = wrapException("Could not provide server RSA encryption credentials") {
