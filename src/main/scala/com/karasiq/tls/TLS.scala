@@ -14,16 +14,25 @@ object TLS {
   object KeySet {
     def apply(keyStore: TLSKeyStore, name: String, password: String): KeySet = {
       def readKey[K <: AsymmetricKeyParameter](key: String)(implicit m: Manifest[K]): Option[CertificateKey] = {
-        keyStore.getEntry(key).collect {
-          case e: TLSKeyStore.KeyEntry ⇒
+        keyStore.getEntry(key) match {
+          case Some(e: TLSKeyStore.KeyEntry) ⇒
             val key = e.keyPair(password)
-            if (!m.runtimeClass.isAssignableFrom(key.getPrivate.getClass)) {
-              throw new IllegalArgumentException(s"Invalid key type: ${key.getPrivate.getClass.getSimpleName} (${m.runtimeClass.getSimpleName} expected)")
+            if (m.runtimeClass.isAssignableFrom(key.getPrivate.getClass)) {
+              Some(CertificateKey(e.chain, key))
+            } else {
+              None
             }
-            CertificateKey(e.chain, key)
+
+          case _ ⇒
+            None
         }
       }
-      KeySet(readKey[RSAKeyParameters](s"$name-rsa").orElse(readKey[RSAKeyParameters](name)), readKey[DSAKeyParameters](s"$name-dsa"), readKey[ECKeyParameters](s"$name-ecdsa"))
+
+      def autoSearch[K <: AsymmetricKeyParameter](postfix: String)(implicit m: Manifest[K]) = {
+        readKey[K](s"$name-$postfix").orElse(readKey[K](name))
+      }
+
+      KeySet(autoSearch[RSAKeyParameters]("rsa"), autoSearch[DSAKeyParameters]("dsa"), autoSearch[ECKeyParameters]("ecdsa"))
     }
 
     def apply(keyStore: TLSKeyStore, name: String): KeySet = apply(keyStore, name, null)
