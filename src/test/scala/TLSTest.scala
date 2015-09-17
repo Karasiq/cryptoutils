@@ -2,10 +2,9 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.{ServerSocketChannel, SocketChannel}
 
-import com.karasiq.tls.TLS.CertificateKey
+import com.karasiq.tls.TLSCertificateGenerator.CertExtension
 import com.karasiq.tls._
-import org.bouncycastle.asn1.x509.Certificate
-import org.bouncycastle.crypto.tls.{CertificateRequest, ClientCertificateType}
+import org.bouncycastle.asn1.x509.KeyUsage
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
@@ -14,16 +13,6 @@ import scala.language.postfixOps
 import scala.util.control.Exception
 
 class TLSTest extends FlatSpec with Matchers {
-  private val verifier = new TLSCertificateVerifier() {
-    override protected def isCAValid(certificate: Certificate): Boolean = true // Trusts all certificates
-  }
-
-  private val keySet = {
-    val resource = getClass.getClassLoader.getResource("test.jks").getFile
-    val keyStore = new TLSKeyStore(TLSKeyStore.keyStore(resource, "123456"), "123456")
-    TLS.KeySet(keyStore, "test")
-  }
-
   private def asByteBuffer(s: String): ByteBuffer = {
     ByteBuffer.wrap(s.getBytes("utf-8"))
   }
@@ -43,7 +32,8 @@ class TLSTest extends FlatSpec with Matchers {
 
   "TLS client" should "connect to HTTPS" in {
     val address = new InetSocketAddress("howsmyssl.com", 443)
-    val wrapper = new TLSClientWrapper(verifier, address) {
+
+    val wrapper = new TLSClientWrapper(TLSCertificateVerifier.trustAll(), address) {
       override protected def onInfo(message: String): Unit = {
         println(message)
       }
@@ -66,19 +56,22 @@ class TLSTest extends FlatSpec with Matchers {
   }
 
   "TLS server" should "accept connection" in {
+    val keyGenerator = TLSCertificateGenerator()
+
+    val certificationAuthority = keyGenerator.generateEcdsa(TLSCertificateGenerator.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSCertificateGenerator.ellipticCurve("secp256k1"), extensions = Set(CertExtension.basicConstraints(ca = true), CertExtension.keyUsage(KeyUsage.keyCertSign | KeyUsage.nonRepudiation)))
+
+    val serverKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("127.0.0.1", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1))
+
+    val clientKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
+
+    val verifier = TLSCertificateVerifier(certificationAuthority.certificate)
+
     val localhost = new InetSocketAddress("127.0.0.1", 4443)
 
     val promisedClientResult = Promise[String]()
     val promisedServerResult = Promise[String]()
 
-    val clientWrapper = new TLSClientWrapper(verifier, localhost) {
-      override protected def getClientCertificate(certificateRequest: CertificateRequest): Option[CertificateKey] = {
-        val types = certificateRequest.getCertificateTypes.toSet
-        keySet.ecdsa.filter(c ⇒ types.contains(ClientCertificateType.ecdsa_sign))
-          .orElse(keySet.rsa.filter(c ⇒ types.contains(ClientCertificateType.rsa_sign)))
-          .orElse(keySet.dsa.filter(c ⇒ types.contains(ClientCertificateType.dss_sign)))
-      }
-
+    val clientWrapper = new TLSClientWrapper(verifier, localhost, clientKeySet) {
       override protected def onInfo(message: String): Unit = {
         println(s"Client: $message")
       }
@@ -89,7 +82,7 @@ class TLSTest extends FlatSpec with Matchers {
       }
     }
 
-    val serverWrapper = new TLSServerWrapper(keySet, true, verifier) {
+    val serverWrapper = new TLSServerWrapper(serverKeySet, true, verifier) {
       override protected def onInfo(message: String): Unit = {
         println(s"Server: $message")
       }

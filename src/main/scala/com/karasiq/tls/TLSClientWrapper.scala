@@ -11,8 +11,11 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddress = null) extends TLSConnectionWrapper {
-  protected def getClientCertificate(certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = None
+class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddress = null, keySet: TLS.KeySet = null) extends TLSConnectionWrapper {
+  protected def getClientCertificate(certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = {
+    if (keySet == null) None
+    else TLSUtils.certificateFor(keySet, certificateRequest)
+  }
 
   override def apply(connection: SocketChannel): SocketChannel = {
     val protocol = new TlsClientProtocol(SocketChannelWrapper.inputStream(connection), SocketChannelWrapper.outputStream(connection), new SecureRandom())

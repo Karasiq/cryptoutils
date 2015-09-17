@@ -1,7 +1,9 @@
 package com.karasiq.tls.internal
 
-import com.karasiq.tls.{TLS, TLSKeyStore}
+import com.karasiq.tls.{TLS, TLSCertificateVerifier}
 import com.typesafe.config.{Config, ConfigFactory}
+import org.bouncycastle.asn1.x509.{BasicConstraints, KeyUsage}
+import org.bouncycastle.cert.X509CertificateHolder
 import org.bouncycastle.crypto.params._
 import org.bouncycastle.crypto.tls._
 
@@ -45,7 +47,7 @@ object TLSUtils {
     }
   }
 
-  def authoritiesOf(trustStore: TLSKeyStore): java.util.Vector[_] = {
+  def authoritiesOf(trustStore: TLSCertificateVerifier): java.util.Vector[_] = {
     @inline
     def asJavaVector(data: GenTraversableOnce[AnyRef]): java.util.Vector[AnyRef] = {
       val vector = new java.util.Vector[AnyRef]()
@@ -53,15 +55,12 @@ object TLSUtils {
       vector
     }
 
-    asJavaVector(trustStore.iterator().collect {
-      case cert: TLSKeyStore.CertificateEntry ⇒
-        cert.certificate.getSubject
-    })
+    asJavaVector(trustStore.trustedRootCertificates.map(_.getSubject))
   }
 
-  def certificateRequest(protocolVersion: ProtocolVersion, trustStore: TLSKeyStore): CertificateRequest = {
+  def certificateRequest(protocolVersion: ProtocolVersion, verifier: TLSCertificateVerifier): CertificateRequest = {
     val certificateTypes = Array(ClientCertificateType.rsa_sign, ClientCertificateType.dss_sign, ClientCertificateType.ecdsa_sign)
-    new CertificateRequest(certificateTypes, defaultSignatureAlgorithms(protocolVersion), authoritiesOf(trustStore))
+    new CertificateRequest(certificateTypes, defaultSignatureAlgorithms(protocolVersion), authoritiesOf(verifier))
   }
 
   def certificateFor(keySet: TLS.KeySet, certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = {
@@ -122,5 +121,16 @@ object TLSUtils {
   def maxVersion(): ProtocolVersion = {
     val config = openConfig()
     readVersion(config.getString("max-version"))
+  }
+
+  def isCertificateAuthority(certificate: TLS.Certificate): Boolean = {
+    val certHolder = new X509CertificateHolder(certificate)
+    Option(BasicConstraints.fromExtensions(certHolder.getExtensions))
+      .fold(true)(_.isCA)
+  }
+
+  def isKeyUsageAllowed(certificate: TLS.Certificate, keyUsage: Int): Boolean = {
+    Option(KeyUsage.fromExtensions(new X509CertificateHolder(certificate).getExtensions))
+      .fold(true)(_.hasUsages(keyUsage))
   }
 }
