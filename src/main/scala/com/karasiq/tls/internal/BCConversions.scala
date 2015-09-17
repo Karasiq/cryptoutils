@@ -15,7 +15,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 import scala.util.control.Exception
 
-private[tls] object BCConversions {
+object BCConversions {
   private val provider = new BouncyCastleProvider
 
   implicit class JavaKeyOps(key: java.security.Key) {
@@ -43,6 +43,12 @@ private[tls] object BCConversions {
 
     def toSubjectPublicKeyInfo: SubjectPublicKeyInfo = {
       SubjectPublicKeyInfo.getInstance(key.getEncoded)
+    }
+  }
+
+  implicit class SubjectPublicKeyInfoOps(subjectPublicKeyInfo: SubjectPublicKeyInfo) {
+    def toPublicKey: java.security.PublicKey = {
+      PublicKeyFactory.createKey(subjectPublicKeyInfo).toPublicKey
     }
   }
 

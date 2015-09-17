@@ -10,6 +10,7 @@ import com.karasiq.tls.internal.BCConversions._
 import com.karasiq.tls.internal.TLSUtils
 import com.typesafe.config.ConfigFactory
 import org.bouncycastle.asn1.nist.NISTObjectIdentifiers
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x500.{X500Name, X500NameBuilder}
 import org.bouncycastle.asn1.x509._
@@ -19,6 +20,8 @@ import org.bouncycastle.jce.ECNamedCurveTable
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.jce.spec.ECParameterSpec
 import org.bouncycastle.operator.jcajce.{JcaContentSignerBuilder, JcaDigestCalculatorProviderBuilder}
+import org.bouncycastle.pkcs.PKCS10CertificationRequest
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder
 
 import scala.util.Try
 
@@ -56,27 +59,41 @@ object TLSCertificateGenerator {
     ellipticCurve(config.getString("ecdsa-curve"))
   }
 
-  def subject(commonName: String, country: String = "AU", state: String = "Unknown", locality: String = "Unknown", organization: String = "Unknown", organizationUnit: String = "Unknown", email: String = "Unknown"): X500Name = {
-    def checkLength(s: String, max: Int = 64, min: Int = 1) = {
+  def subject(commonName: String, country: String = null, state: String = null, locality: String = null, organization: String = null, organizationUnit: String = null, email: String = null): X500Name = {
+    def checkLength(s: String, max: Int = 64, min: Int = 1): Unit = {
       assert(s.length >= min && s.length <= max, s"Invalid data length: $s")
     }
 
-    checkLength(country, 2, 2)
+    val builder = new X500NameBuilder()
+    assert(commonName ne null, "Common name required")
     checkLength(commonName)
-    checkLength(state)
-    checkLength(locality)
-    checkLength(organization)
-    checkLength(organizationUnit)
+    builder.addRDN(BCStyle.CN, commonName)
 
-    new X500NameBuilder()
-      .addRDN(BCStyle.CN, commonName)
-      .addRDN(BCStyle.C, country)
-      .addRDN(BCStyle.ST, state)
-      .addRDN(BCStyle.L, locality)
-      .addRDN(BCStyle.O, organization)
-      .addRDN(BCStyle.OU, organizationUnit)
-      .addRDN(BCStyle.E, email)
-      .build()
+    if (country != null) {
+      checkLength(country, 2, 2)
+      builder.addRDN(BCStyle.C, country)
+    }
+    if (state != null) {
+      checkLength(state)
+      builder.addRDN(BCStyle.ST, state)
+    }
+    if (locality != null) {
+      checkLength(locality)
+      builder.addRDN(BCStyle.L, locality)
+    }
+    if (organization != null) {
+      checkLength(organization)
+      builder.addRDN(BCStyle.O, organization)
+    }
+    if (organizationUnit != null) {
+      checkLength(organizationUnit)
+      builder.addRDN(BCStyle.OU, organizationUnit)
+    }
+    if (email != null) {
+      builder.addRDN(BCStyle.E, email)
+    }
+
+    builder.build()
   }
 
   def apply(): TLSCertificateGenerator = new TLSCertificateGenerator
@@ -111,16 +128,19 @@ object TLSCertificateGenerator {
       new X509ExtensionUtils(calculator)
     }
 
-    def load(cert: TLS.Certificate): Set[CertExtension] = {
-      val extensionsHolder = new X509CertificateHolder(cert).getExtensions
+    def load(extensionsHolder: Extensions): Set[CertExtension] = {
       val critical = extensionsHolder.getCriticalExtensionOIDs.map { oid ⇒
-        CertExtension(oid, extensionsHolder.getExtension(oid), critical = true)
+        CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = true)
       }
 
       val extensions = extensionsHolder.getExtensionOIDs.map { oid ⇒
-        CertExtension(oid, extensionsHolder.getExtension(oid), critical = false)
+        CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = false)
       }
       critical.toSet ++ extensions.toSet
+    }
+
+    def load(cert: TLS.Certificate): Set[CertExtension] = {
+      load(new X509CertificateHolder(cert).getExtensions)
     }
     
     def basicConstraints(ca: Boolean = false): CertExtension = {
@@ -136,6 +156,21 @@ object TLSCertificateGenerator {
       Set(CertExtension(Extension.subjectKeyIdentifier, utils.createSubjectKeyIdentifier(key.toSubjectPublicKeyInfo))) ++ issuer.map { cert ⇒
         CertExtension(Extension.authorityKeyIdentifier, utils.createAuthorityKeyIdentifier(new X509CertificateHolder(cert.certificate)))
       }
+    }
+
+    def alternativeName(otherName: String = null, rfc822Name: String = null, dNSName: String = null, x400Address: String = null, directoryName: String = null, ediPartyName: String = null, uniformResourceIdentifier: String = null, iPAddress: String = null, registeredID: String = null, extensionId: ASN1ObjectIdentifier = Extension.subjectAlternativeName): CertExtension = {
+      val names = Seq(
+        Option(otherName).map(new GeneralName(GeneralName.otherName, _)),
+        Option(rfc822Name).map(new GeneralName(GeneralName.rfc822Name, _)),
+        Option(dNSName).map(new GeneralName(GeneralName.dNSName, _)),
+        Option(x400Address).map(new GeneralName(GeneralName.x400Address, _)),
+        Option(directoryName).map(new GeneralName(GeneralName.directoryName, _)),
+        Option(ediPartyName).map(new GeneralName(GeneralName.ediPartyName, _)),
+        Option(uniformResourceIdentifier).map(new GeneralName(GeneralName.uniformResourceIdentifier, _)),
+        Option(iPAddress).map(new GeneralName(GeneralName.iPAddress, _)),
+        Option(registeredID).map(new GeneralName(GeneralName.registeredID, _))
+      )
+      CertExtension(extensionId, new GeneralNames(names.flatten.toArray))
     }
   }
 
@@ -153,12 +188,61 @@ class TLSCertificateGenerator {
   }
 
   /**
+   * Creates PKCS10 certification request
+   * @param keyPair Key pair
+   * @param subject Certificate subject
+   * @param extensions X509 extensions
+   * @return Certification request
+   */
+  def createRequest(keyPair: KeyPair, subject: X500Name, extensions: Set[CertExtension] = TLSCertificateGenerator.defaultExtensions()): PKCS10CertificationRequest = {
+    val contentSigner = new JcaContentSignerBuilder(TLSCertificateGenerator.signatureAlgorithmFor(keyPair.getPrivate.getAlgorithm))
+      .setProvider(provider)
+      .build(keyPair.getPrivate)
+
+    val builder = new JcaPKCS10CertificationRequestBuilder(subject, keyPair.getPublic)
+    val extGen = new ExtensionsGenerator()
+    extensions.foreach { e ⇒
+      extGen.addExtension(e.id, e.critical, e.value)
+    }
+    builder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate())
+    builder.build(contentSigner)
+  }
+
+  /**
+   * Signs certification request and creates X509 certificate
+   * @param request Certification request
+   * @param issuer Certificate issuer
+   * @param serial Certificate serial number
+   * @param notAfter Certificate expiration date
+   * @param extensions X509 extensions
+   * @return X509 certificate
+   */
+  def signRequest(request: PKCS10CertificationRequest, issuer: TLS.CertificateKey, serial: BigInt = BigInt(1), notAfter: Instant = TLSCertificateGenerator.defaultExpire(), extensions: Set[CertExtension] = Set.empty): TLS.CertificateChain = {
+    val signKey = issuer.key.getPrivate.toPrivateKey
+    val contentSigner = new JcaContentSignerBuilder(TLSCertificateGenerator.signatureAlgorithmFor(signKey.getAlgorithm))
+      .setProvider(provider)
+      .build(signKey)
+
+    val certificateBuilder = new X509v3CertificateBuilder(issuer.certificate.getSubject, serial.underlying(), new Date(), Date.from(notAfter),
+      request.getSubject, request.getSubjectPublicKeyInfo)
+
+    val csrExtensions: Set[CertExtension] = Try(CertExtension.load(Extensions.getInstance(request.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest).head.getAttrValues.getObjectAt(0)))).getOrElse(Set())
+
+    (extensions ++ CertExtension.identifiers(request.getSubjectPublicKeyInfo.toPublicKey, Some(issuer)) ++ csrExtensions).foreach { ext ⇒
+      certificateBuilder.addExtension(ext.id, ext.critical, ext.value)
+    }
+
+    makeChain(issuer.certificateChain, certificateBuilder.build(contentSigner).toASN1Structure)
+  }
+
+  /**
    * Creates X509 certificate from provided key pair
    * @param keyPair Asymmetric cipher key pair
    * @param subject Certificate subject
    * @param issuer Certificate issuer (None = self-signed)
    * @param serial Certificate serial number
    * @param notAfter Certificate expiration date
+   * @param extensions X509 extensions
    * @return Created certificate
    */
   def create(keyPair: KeyPair, subject: X500Name, issuer: Option[TLS.CertificateKey] = None, serial: BigInt = BigInt(1), notAfter: Instant = TLSCertificateGenerator.defaultExpire(), extensions: Set[CertExtension] = TLSCertificateGenerator.defaultExtensions()): TLS.CertificateKey = {
@@ -188,6 +272,7 @@ class TLSCertificateGenerator {
    * @param issuer Certificate issuer (None = self-signed)
    * @param serial Certificate serial number
    * @param notAfter Certificate expiration date
+   * @param extensions X509 extensions
    * @return Created certificate and key pair
    */
   def generate(subject: X500Name, algorithm: String = "RSA", size: Int = 0, issuer: Option[TLS.CertificateKey] = None, serial: BigInt = BigInt(1), notAfter: Instant = TLSCertificateGenerator.defaultExpire(), extensions: Set[CertExtension] = TLSCertificateGenerator.defaultExtensions()): TLS.CertificateKey = {
@@ -209,6 +294,7 @@ class TLSCertificateGenerator {
    * @param issuer Certificate issuer (None = self-signed)
    * @param serial Certificate serial number
    * @param notAfter Certificate expiration date
+   * @param extensions X509 extensions
    * @return Created certificate and key pair
    */
   def generateEcdsa(subject: X500Name, curve: ECParameterSpec = TLSCertificateGenerator.defaultEllipticCurve(), issuer: Option[TLS.CertificateKey] = None, serial: BigInt = BigInt(1), notAfter: Instant = TLSCertificateGenerator.defaultExpire(), extensions: Set[CertExtension] = TLSCertificateGenerator.defaultExtensions()): TLS.CertificateKey = {
@@ -227,6 +313,7 @@ class TLSCertificateGenerator {
    * @param issuer Certificate issuer (None = self-signed)
    * @param serial Certificate serial number
    * @param notAfter Certificate expiration date
+   * @param extensions X509 extensions
    * @return Created certificate and key pair
    */
   def generateKeySet(subject: X500Name, rsaSize: Int = TLSCertificateGenerator.defaultKeySize("RSA"), dsaSize: Int = TLSCertificateGenerator.defaultKeySize("DSA"), curve: ECParameterSpec = TLSCertificateGenerator.defaultEllipticCurve(), issuer: Option[TLS.CertificateKey] = None, serial: BigInt = BigInt(1), notAfter: Instant = TLSCertificateGenerator.defaultExpire(), extensions: Set[CertExtension] = TLSCertificateGenerator.defaultExtensions()): TLS.KeySet = {

@@ -2,7 +2,8 @@ package com.karasiq.tls.internal
 
 import com.karasiq.tls.{TLS, TLSCertificateVerifier}
 import com.typesafe.config.{Config, ConfigFactory}
-import org.bouncycastle.asn1.x509.{BasicConstraints, KeyUsage}
+import org.bouncycastle.asn1.ASN1Encodable
+import org.bouncycastle.asn1.x509.{BasicConstraints, Extension, GeneralNames, KeyUsage}
 import org.bouncycastle.cert.X509CertificateHolder
 import org.bouncycastle.crypto.params._
 import org.bouncycastle.crypto.tls._
@@ -121,6 +122,15 @@ object TLSUtils {
   def maxVersion(): ProtocolVersion = {
     val config = openConfig()
     readVersion(config.getString("max-version"))
+  }
+
+  def alternativeNames(certificate: TLS.Certificate): Option[GeneralNames] = {
+    val certHolder = new X509CertificateHolder(certificate)
+    Option(GeneralNames.fromExtensions(certHolder.getExtensions, Extension.subjectAlternativeName))
+  }
+
+  def alternativeName(certificate: TLS.Certificate, nameId: Int): Option[ASN1Encodable] = {
+    alternativeNames(certificate).flatMap(_.getNames.find(_.getTagNo == nameId).map(_.getName))
   }
 
   def isCertificateAuthority(certificate: TLS.Certificate): Boolean = {

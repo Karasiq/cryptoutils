@@ -1,14 +1,17 @@
 package com.karasiq.tls
 
 import java.io.FileInputStream
+import java.net.InetAddress
 import java.security.KeyStore
+import java.util
 import java.util.Date
 
 import com.karasiq.tls.TLS.Certificate
 import com.karasiq.tls.internal.TLSUtils
 import com.typesafe.config.ConfigFactory
+import org.bouncycastle.asn1.DEROctetString
 import org.bouncycastle.asn1.x500.style.BCStyle
-import org.bouncycastle.asn1.x509.KeyUsage
+import org.bouncycastle.asn1.x509.{GeneralName, KeyUsage}
 import org.bouncycastle.cert.X509CertificateHolder
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder
@@ -127,17 +130,39 @@ class TLSCertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) 
     @tailrec
     def check(actual: List[String], cert: List[String]): Boolean = {
       (actual, cert) match {
+        case (Nil, Nil) ⇒
+          true
+
         case (_, "*" :: _) ⇒
           true
 
-        case (actualPart :: actualRest, certPart :: certRest) ⇒
-          actualPart == certPart && check(actualRest, certRest)
+        case (actualPart :: actualRest, certPart :: certRest) if actualPart.compareToIgnoreCase(certPart) == 0 ⇒
+          check(actualRest, certRest)
 
         case _ ⇒
           false
       }
     }
 
-    hostName == certHost || check(hostName.split('.').toList.reverse, certHost.split('.').toList.reverse)
+    def asList(s: String) = {
+      s.split('.').toList match {
+        case "www" :: rest ⇒
+          rest.reverse
+
+        case list ⇒
+          list.reverse
+      }
+    }
+
+    val cnCheck = check(asList(hostName), asList(certHost))
+    val sanCheck = {
+      val ip = TLSUtils.alternativeName(certificate, GeneralName.iPAddress)
+      val host = TLSUtils.alternativeName(certificate, GeneralName.dNSName)
+
+      ip.fold(false)(ip ⇒ util.Arrays.equals(ip.asInstanceOf[DEROctetString].getOctets, InetAddress.getByName(hostName).getAddress)) ||
+        host.fold(false)(dns ⇒ check(asList(dns.toString), asList(InetAddress.getByName(hostName).getHostName)))
+    }
+
+    cnCheck || sanCheck
   }
 }

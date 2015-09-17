@@ -58,9 +58,17 @@ class TLSTest extends FlatSpec with Matchers {
   "TLS server" should "accept connection" in {
     val keyGenerator = TLSCertificateGenerator()
 
-    val certificationAuthority = keyGenerator.generateEcdsa(TLSCertificateGenerator.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSCertificateGenerator.ellipticCurve("secp256k1"), extensions = Set(CertExtension.basicConstraints(ca = true), CertExtension.keyUsage(KeyUsage.keyCertSign | KeyUsage.nonRepudiation)))
+    def caExtensions() = {
+      Set(CertExtension.basicConstraints(ca = true), CertExtension.keyUsage(KeyUsage.keyCertSign | KeyUsage.nonRepudiation))
+    }
 
-    val serverKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("127.0.0.1", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1))
+    def serverExtensions() = {
+      TLSCertificateGenerator.defaultExtensions() ++ Set(CertExtension.alternativeName(dNSName = "localhost", iPAddress = "127.0.0.1"))
+    }
+
+    val certificationAuthority = keyGenerator.generateEcdsa(TLSCertificateGenerator.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSCertificateGenerator.ellipticCurve("secp256k1"), extensions = caExtensions())
+
+    val serverKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = serverExtensions())
 
     val clientKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
 
