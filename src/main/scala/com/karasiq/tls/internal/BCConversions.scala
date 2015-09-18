@@ -15,6 +15,9 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 
 import scala.util.control.Exception
 
+/**
+ * Provides conversions between JCA and BouncyCastle classes
+ */
 object BCConversions {
   private val provider = new BouncyCastleProvider
 
@@ -79,6 +82,10 @@ object BCConversions {
         case _ ⇒
           throw new IllegalArgumentException("Unknown key algorithm: " + key)
       }
+    }
+
+    def toSubjectPublicKeyInfo: SubjectPublicKeyInfo = {
+      toPublicKey.toSubjectPublicKeyInfo
     }
 
     def toPrivateKey: PrivateKey = {

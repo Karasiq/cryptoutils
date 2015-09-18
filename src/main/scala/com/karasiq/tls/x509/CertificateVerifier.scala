@@ -1,4 +1,4 @@
-package com.karasiq.tls
+package com.karasiq.tls.x509
 
 import java.io.FileInputStream
 import java.net.InetAddress
@@ -7,19 +7,17 @@ import java.util
 import java.util.Date
 
 import com.karasiq.tls.TLS.Certificate
-import com.karasiq.tls.internal.TLSUtils
+import com.karasiq.tls.{TLS, TLSKeyStore}
 import com.typesafe.config.ConfigFactory
 import org.bouncycastle.asn1.DEROctetString
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x509.{GeneralName, KeyUsage}
 import org.bouncycastle.cert.X509CertificateHolder
-import org.bouncycastle.jce.provider.BouncyCastleProvider
-import org.bouncycastle.operator.jcajce.JcaContentVerifierProviderBuilder
 
 import scala.annotation.tailrec
 import scala.util.control.Exception
 
-object TLSCertificateVerifier {
+object CertificateVerifier {
   /**
    * Opens specified JKS trust store
    * @param path Trust store file path
@@ -49,7 +47,7 @@ object TLSCertificateVerifier {
    * @param trustStore Trust store
    * @return Certificate verifier
    */
-  def fromTrustStore(trustStore: KeyStore = TLSCertificateVerifier.defaultTrustStore()): TLSCertificateVerifier = {
+  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore()): CertificateVerifier = {
     val tlsKeyStore = new TLSKeyStore(trustStore, null)
 
     val trustedRootCertificates: Set[Certificate] = {
@@ -59,33 +57,28 @@ object TLSCertificateVerifier {
       }.toSet
     }
 
-    new TLSCertificateVerifier(trustedRootCertificates)
+    new CertificateVerifier(trustedRootCertificates)
   }
 
   /**
    * Creates certificate verifier, which trusts all root certificates without checking
    * @return Certificate verifier
    */
-  def trustAll(): TLSCertificateVerifier = new TLSCertificateVerifier(Set.empty) {
+  def trustAll(): CertificateVerifier = new CertificateVerifier(Set.empty) {
     override protected def isCAValid(certificate: Certificate): Boolean = true
   }
 
-  def apply(certs: TLS.Certificate*): TLSCertificateVerifier = {
-    new TLSCertificateVerifier(certs.toSet)
+  def apply(certs: TLS.Certificate*): CertificateVerifier = {
+    new CertificateVerifier(certs.toSet)
   }
 }
 
-class TLSCertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) {
-  private val bcProvider = new BouncyCastleProvider
-
+class CertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) {
   protected def isCertificateValid(certificate: TLS.Certificate, issuer: TLS.Certificate): Boolean = {
-    val contentVerifierProvider = new JcaContentVerifierProviderBuilder()
-      .setProvider(bcProvider)
-      .build(new X509CertificateHolder(issuer))
-
+    val contentVerifierProvider = X509Utils.contentVerifierProvider(issuer)
     val certHolder = new X509CertificateHolder(certificate)
 
-    TLSUtils.isCertificateAuthority(issuer) && TLSUtils.isKeyUsageAllowed(issuer, KeyUsage.keyCertSign) &&
+    X509Utils.isCertificationAuthority(issuer) && X509Utils.isKeyUsageAllowed(issuer, KeyUsage.keyCertSign) &&
       certHolder.isValidOn(new Date()) && certHolder.isSignatureValid(contentVerifierProvider)
   }
 
@@ -101,25 +94,31 @@ class TLSCertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) 
    * @param chain X509 certificate chain
    * @return Is chain valid
    */
-  @tailrec
-  final def isChainValid(chain: List[TLS.Certificate]): Boolean = {
-    chain match {
-      case cert :: issuer :: Nil ⇒
-        isCertificateValid(cert, issuer) && isCAValid(issuer)
+  def isChainValid(chain: List[TLS.Certificate]): Boolean = {
+    @tailrec
+    def isChainValidRec(chain: List[TLS.Certificate], position: Int): Boolean = {
+      chain match {
+        case cert :: issuer :: Nil ⇒
+          X509Utils.getPathLengthConstraint(issuer).fold(true)(_ >= position) &&
+            isCertificateValid(cert, issuer) && isCAValid(issuer)
 
-      case cert :: issuer :: rest ⇒
-        isCertificateValid(cert, issuer) && isChainValid(issuer :: rest)
+        case cert :: issuer :: rest ⇒
+          X509Utils.getPathLengthConstraint(issuer).fold(true)(_ >= position) &&
+            isCertificateValid(cert, issuer) && isChainValidRec(issuer :: rest, position + 1)
 
-      case cert :: Nil ⇒
-        isCAValid(cert)
+        case cert :: Nil ⇒
+          isCAValid(cert)
 
-      case _ ⇒
-        false
+        case _ ⇒
+          false
+      }
     }
+
+    isChainValidRec(chain, 1)
   }
 
   /**
-   * Ensures that actual hostname matches with X509 CN
+   * Ensures that actual hostname matches with X509 CN/SANs
    * @param certificate X509 certificate
    * @param hostName Actual hostname
    * @return Is hostname valid
@@ -146,7 +145,7 @@ class TLSCertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) 
 
     def asList(s: String) = {
       s.split('.').toList match {
-        case "www" :: rest ⇒
+        case "www" :: rest ⇒ // Strip WWW
           rest.reverse
 
         case list ⇒
@@ -156,8 +155,8 @@ class TLSCertificateVerifier(val trustedRootCertificates: Set[TLS.Certificate]) 
 
     val cnCheck = check(asList(hostName), asList(certHost))
     val sanCheck = {
-      val ip = TLSUtils.alternativeName(certificate, GeneralName.iPAddress)
-      val host = TLSUtils.alternativeName(certificate, GeneralName.dNSName)
+      val ip = X509Utils.alternativeNameOf(certificate, GeneralName.iPAddress)
+      val host = X509Utils.alternativeNameOf(certificate, GeneralName.dNSName)
 
       ip.fold(false)(ip ⇒ util.Arrays.equals(ip.asInstanceOf[DEROctetString].getOctets, InetAddress.getByName(hostName).getAddress)) ||
         host.fold(false)(dns ⇒ check(asList(dns.toString), asList(InetAddress.getByName(hostName).getHostName)))

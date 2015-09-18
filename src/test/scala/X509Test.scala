@@ -1,36 +1,37 @@
 import java.io.ByteArrayOutputStream
 
-import com.karasiq.tls.TLSCertificateGenerator.CertExtension
+import com.karasiq.tls.TLSKeyStore
 import com.karasiq.tls.internal.BCConversions._
-import com.karasiq.tls.{TLSCertificateGenerator, TLSCertificateVerifier, TLSKeyStore}
-import org.bouncycastle.asn1.x509.KeyUsage
-import org.scalatest.FreeSpec
+import com.karasiq.tls.internal.TLSUtils
+import com.karasiq.tls.x509.{CertExtension, CertificateGenerator, CertificateVerifier, X509Utils}
+import org.scalatest.{FreeSpec, Matchers}
 
 import scala.util.control.Exception
 
-class X509Test extends FreeSpec {
+class X509Test extends FreeSpec with Matchers {
   "Certificate generator" - {
-    val keyGenerator = TLSCertificateGenerator()
+    val keyGenerator = CertificateGenerator()
 
     "With generated keys" - {
-      def caExtensions() = {
-        Set(CertExtension.basicConstraints(ca = true), CertExtension.keyUsage(KeyUsage.keyCertSign | KeyUsage.nonRepudiation))
+      val certificationAuthority = keyGenerator.generateEcdsa(X509Utils.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSUtils.getEllipticCurve("secp256k1"), extensions = CertExtension.certificationAuthorityExtensions(1))
+
+      val serverKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1))
+
+
+      "should verify extensions" in {
+        X509Utils.compareAuthorityIdentifier(serverKeySet.rsa.get.certificate, certificationAuthority.certificate) shouldBe Some(true)
+        X509Utils.comparePublicKeyIdentifier(serverKeySet.dsa.get.certificate, serverKeySet.dsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
+        X509Utils.getPathLengthConstraint(certificationAuthority.certificate) shouldBe Some(1)
       }
-
-      def serverExtensions() = {
-        TLSCertificateGenerator.defaultExtensions() ++ Set(CertExtension.alternativeName(dNSName = "localhost", iPAddress = "127.0.0.1"))
-      }
-
-      val certificationAuthority = keyGenerator.generateEcdsa(TLSCertificateGenerator.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSCertificateGenerator.ellipticCurve("secp256k1"), extensions = caExtensions())
-
-      val serverKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = serverExtensions())
 
       "should sign CSR" in {
         serverKeySet.ecdsa.foreach { key ⇒
-          val request = keyGenerator.createRequest(key.key.toKeyPair, key.certificate.getSubject, serverExtensions())
+          val request = keyGenerator.createRequest(key.key.toKeyPair, key.certificate.getSubject)
           val cert = keyGenerator.signRequest(request, certificationAuthority)
-          val verifier = TLSCertificateVerifier(certificationAuthority.certificate)
+          val verifier = CertificateVerifier(certificationAuthority.certificate)
           assert(verifier.isChainValid(cert.getCertificateList.toList))
+          X509Utils.compareAuthorityIdentifier(cert.toTlsCertificate, certificationAuthority.certificate) shouldBe Some(true)
+          X509Utils.comparePublicKeyIdentifier(cert.toTlsCertificate, serverKeySet.ecdsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
           println("CSR signed: " + cert.toTlsCertificate.getSubject)
         }
       }

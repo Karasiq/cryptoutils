@@ -1,22 +1,26 @@
 package com.karasiq.tls.internal
 
-import com.karasiq.tls.{TLS, TLSCertificateVerifier}
-import com.typesafe.config.{Config, ConfigFactory}
-import org.bouncycastle.asn1.ASN1Encodable
-import org.bouncycastle.asn1.x509.{BasicConstraints, Extension, GeneralNames, KeyUsage}
-import org.bouncycastle.cert.X509CertificateHolder
+import java.security.Provider
+
+import com.karasiq.tls.TLS
+import com.karasiq.tls.x509.CertificateVerifier
+import com.typesafe.config.ConfigFactory
 import org.bouncycastle.crypto.params._
 import org.bouncycastle.crypto.tls._
+import org.bouncycastle.jce.ECNamedCurveTable
+import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.jce.spec.ECParameterSpec
 
 import scala.collection.GenTraversableOnce
 import scala.collection.JavaConversions._
 import scala.util.Try
 
 object TLSUtils {
-  private def openConfig(): Config = ConfigFactory.load().getConfig("karasiq.tls")
+  private[tls] lazy val provider: Provider = new BouncyCastleProvider
+
+  private val config = ConfigFactory.load().getConfig("karasiq.tls")
 
   def signatureAlgorithm(key: AsymmetricKeyParameter): SignatureAndHashAlgorithm = {
-    val config = openConfig()
     val hash: Short = {
       val name = config.getString("hash-algorithm")
       Try(classOf[HashAlgorithm].getField(name.replace("-", "").toLowerCase).getShort(null))
@@ -48,7 +52,7 @@ object TLSUtils {
     }
   }
 
-  def authoritiesOf(trustStore: TLSCertificateVerifier): java.util.Vector[_] = {
+  def authoritiesOf(trustStore: CertificateVerifier): java.util.Vector[_] = {
     @inline
     def asJavaVector(data: GenTraversableOnce[AnyRef]): java.util.Vector[AnyRef] = {
       val vector = new java.util.Vector[AnyRef]()
@@ -59,7 +63,7 @@ object TLSUtils {
     asJavaVector(trustStore.trustedRootCertificates.map(_.getSubject))
   }
 
-  def certificateRequest(protocolVersion: ProtocolVersion, verifier: TLSCertificateVerifier): CertificateRequest = {
+  def certificateRequest(protocolVersion: ProtocolVersion, verifier: CertificateVerifier): CertificateRequest = {
     val certificateTypes = Array(ClientCertificateType.rsa_sign, ClientCertificateType.dss_sign, ClientCertificateType.ecdsa_sign)
     new CertificateRequest(certificateTypes, defaultSignatureAlgorithms(protocolVersion), authoritiesOf(verifier))
   }
@@ -94,13 +98,12 @@ object TLSUtils {
    * @return BC cipher suites array
    */
   def defaultCipherSuites(): Array[Int] = {
-    val config = openConfig()
     val cipherSuites = config.getStringList("cipher-suites").map(stringAsCipherSuite)
     require(cipherSuites.nonEmpty, "Cipher suites is empty")
     cipherSuites.toArray
   }
 
-  private def readVersion(v: String): ProtocolVersion = v match {
+  private def asProtocolVersion(v: String): ProtocolVersion = v match {
     case "TLSv1" ⇒
       ProtocolVersion.TLSv10
 
@@ -115,32 +118,15 @@ object TLSUtils {
   }
 
   def minVersion(): ProtocolVersion = {
-    val config = openConfig()
-    readVersion(config.getString("min-version"))
+    asProtocolVersion(config.getString("min-version"))
   }
 
   def maxVersion(): ProtocolVersion = {
-    val config = openConfig()
-    readVersion(config.getString("max-version"))
+    asProtocolVersion(config.getString("max-version"))
   }
 
-  def alternativeNames(certificate: TLS.Certificate): Option[GeneralNames] = {
-    val certHolder = new X509CertificateHolder(certificate)
-    Option(GeneralNames.fromExtensions(certHolder.getExtensions, Extension.subjectAlternativeName))
-  }
-
-  def alternativeName(certificate: TLS.Certificate, nameId: Int): Option[ASN1Encodable] = {
-    alternativeNames(certificate).flatMap(_.getNames.find(_.getTagNo == nameId).map(_.getName))
-  }
-
-  def isCertificateAuthority(certificate: TLS.Certificate): Boolean = {
-    val certHolder = new X509CertificateHolder(certificate)
-    Option(BasicConstraints.fromExtensions(certHolder.getExtensions))
-      .fold(true)(_.isCA)
-  }
-
-  def isKeyUsageAllowed(certificate: TLS.Certificate, keyUsage: Int): Boolean = {
-    Option(KeyUsage.fromExtensions(new X509CertificateHolder(certificate).getExtensions))
-      .fold(true)(_.hasUsages(keyUsage))
+  def getEllipticCurve(name: String): ECParameterSpec = {
+    Option(ECNamedCurveTable.getParameterSpec(name))
+      .getOrElse(throw new IllegalArgumentException("Elliptic curve not defined: " + name))
   }
 }

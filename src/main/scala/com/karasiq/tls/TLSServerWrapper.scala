@@ -5,6 +5,7 @@ import java.security.SecureRandom
 
 import com.karasiq.tls.TLS.CertificateChain
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
+import com.karasiq.tls.x509.{CertificateVerifier, X509Utils}
 import org.bouncycastle.asn1.x509.KeyUsage
 import org.bouncycastle.crypto.tls._
 
@@ -12,7 +13,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier: TLSCertificateVerifier = null) extends TLSConnectionWrapper {
+class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier: CertificateVerifier = null) extends TLSConnectionWrapper {
   require(verifier != null || !clientAuth, "No client certificate verifier provided")
 
   @throws(classOf[TlsFatalAlert])
@@ -51,7 +52,7 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
       }
 
       private def signerCredentials(certOption: Option[TLS.CertificateKey]): TlsSignerCredentials = {
-        certOption.filter(c ⇒ TLSUtils.isKeyUsageAllowed(c.certificate, KeyUsage.digitalSignature)).fold(throw new TLSException("No suitable signer credentials found")) { cert ⇒
+        certOption.filter(c ⇒ X509Utils.isKeyUsageAllowed(c.certificate, KeyUsage.digitalSignature)).fold(throw new TLSException("No suitable signer credentials found")) { cert ⇒
           new DefaultTlsSignerCredentials(context, cert.certificateChain, cert.key.getPrivate, TLSUtils.signatureAlgorithm(cert.key.getPrivate))
         }
       }
@@ -69,7 +70,7 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
       }
 
       override def getRSAEncryptionCredentials: TlsEncryptionCredentials = wrapException("Could not provide server RSA encryption credentials") {
-        keySet.rsa.filter(c ⇒ TLSUtils.isKeyUsageAllowed(c.certificate, KeyUsage.keyEncipherment)).fold(super.getRSAEncryptionCredentials) { cert ⇒
+        keySet.rsa.filter(c ⇒ X509Utils.isKeyUsageAllowed(c.certificate, KeyUsage.keyEncipherment)).fold(super.getRSAEncryptionCredentials) { cert ⇒
           new DefaultTlsEncryptionCredentials(context, cert.certificateChain, cert.key.getPrivate)
         }
       }

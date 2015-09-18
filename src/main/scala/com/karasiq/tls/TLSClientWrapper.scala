@@ -5,13 +5,14 @@ import java.nio.channels.SocketChannel
 import java.security.SecureRandom
 
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
+import com.karasiq.tls.x509.CertificateVerifier
 import org.bouncycastle.crypto.tls._
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class TLSClientWrapper(verifier: TLSCertificateVerifier, address: InetSocketAddress = null, keySet: TLS.KeySet = null) extends TLSConnectionWrapper {
+class TLSClientWrapper(verifier: CertificateVerifier, address: InetSocketAddress = null, keySet: TLS.KeySet = null) extends TLSConnectionWrapper {
   protected def getClientCertificate(certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = {
     if (keySet == null) None
     else TLSUtils.certificateFor(keySet, certificateRequest)

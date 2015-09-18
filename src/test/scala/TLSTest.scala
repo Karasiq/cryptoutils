@@ -2,9 +2,9 @@ import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.nio.channels.{ServerSocketChannel, SocketChannel}
 
-import com.karasiq.tls.TLSCertificateGenerator.CertExtension
 import com.karasiq.tls._
-import org.bouncycastle.asn1.x509.KeyUsage
+import com.karasiq.tls.internal.TLSUtils
+import com.karasiq.tls.x509.{CertExtension, CertificateGenerator, CertificateVerifier, X509Utils}
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
@@ -33,7 +33,7 @@ class TLSTest extends FlatSpec with Matchers {
   "TLS client" should "connect to HTTPS" in {
     val address = new InetSocketAddress("howsmyssl.com", 443)
 
-    val wrapper = new TLSClientWrapper(TLSCertificateVerifier.trustAll(), address) {
+    val wrapper = new TLSClientWrapper(CertificateVerifier.trustAll(), address) {
       override protected def onInfo(message: String): Unit = {
         println(message)
       }
@@ -56,23 +56,19 @@ class TLSTest extends FlatSpec with Matchers {
   }
 
   "TLS server" should "accept connection" in {
-    val keyGenerator = TLSCertificateGenerator()
-
-    def caExtensions() = {
-      Set(CertExtension.basicConstraints(ca = true), CertExtension.keyUsage(KeyUsage.keyCertSign | KeyUsage.nonRepudiation))
-    }
+    val keyGenerator = CertificateGenerator()
 
     def serverExtensions() = {
-      TLSCertificateGenerator.defaultExtensions() ++ Set(CertExtension.alternativeName(dNSName = "localhost", iPAddress = "127.0.0.1"))
+      CertExtension.defaultExtensions() ++ Set(CertExtension.alternativeName(dNSName = "localhost", iPAddress = "127.0.0.1"))
     }
 
-    val certificationAuthority = keyGenerator.generateEcdsa(TLSCertificateGenerator.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSCertificateGenerator.ellipticCurve("secp256k1"), extensions = caExtensions())
+    val certificationAuthority = keyGenerator.generateEcdsa(X509Utils.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSUtils.getEllipticCurve("secp256k1"), extensions = CertExtension.certificationAuthorityExtensions(1))
 
-    val serverKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = serverExtensions())
+    val serverKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = serverExtensions())
 
-    val clientKeySet = keyGenerator.generateKeySet(TLSCertificateGenerator.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSCertificateGenerator.ellipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
+    val clientKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
 
-    val verifier = TLSCertificateVerifier(certificationAuthority.certificate)
+    val verifier = CertificateVerifier(certificationAuthority.certificate)
 
     val localhost = new InetSocketAddress("127.0.0.1", 4443)
 
