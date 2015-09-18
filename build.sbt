@@ -1,8 +1,8 @@
 name := "cryptoutils"
 
-organization := "com.karasiq"
+organization := "com.github.karasiq"
 
-version := "1.1"
+version := "1.2"
 
 scalaVersion := "2.11.7"
 
