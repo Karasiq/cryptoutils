@@ -7,6 +7,7 @@ import java.security.{KeyFactory, PrivateKey, PublicKey}
 
 import com.karasiq.tls.TLS
 import org.apache.commons.io.IOUtils
+import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
 import org.bouncycastle.asn1.x509.{AlgorithmIdentifier, SubjectPublicKeyInfo}
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair
 import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAKeyParameters, ECKeyParameters, RSAKeyParameters}
@@ -29,32 +30,51 @@ object BCConversions {
       new AsymmetricCipherKeyPair(PublicKeyFactory.createKey(public), PrivateKeyFactory.createKey(data))
     }
 
-//    private def convertRsaKey(rsa: RSAPrivateCrtKey): AsymmetricCipherKeyPair = {
-//      val publicParameters = new RSAKeyParameters(false, rsa.getModulus, rsa.getPublicExponent)
-//      val privateParameters = new RSAPrivateCrtKeyParameters(rsa.getModulus, rsa.getPublicExponent,
-//        rsa.getPrivateExponent, rsa.getPrimeP, rsa.getPrimeQ, rsa.getPrimeExponentP, rsa.getPrimeExponentQ, rsa.getCrtCoefficient)
-//      new AsymmetricCipherKeyPair(publicParameters, privateParameters)
-//    }
-
     def toAsymmetricCipherKeyPair(public: SubjectPublicKeyInfo): AsymmetricCipherKeyPair = key match {
-      // case rsa: java.security.interfaces.RSAPrivateCrtKey ⇒
-      //  convertRsaKey(rsa)
-
       case privateKey: java.security.PrivateKey ⇒
         convertPKCS8Key(privateKey.getEncoded, public)
 
       case _ ⇒
-        throw new IllegalArgumentException(s"Not supported: ${public.getClass}")
+        throw new IllegalArgumentException(s"Not supported: ${key.getClass}")
+    }
+
+    def toAsymmetricKeyParameter: AsymmetricKeyParameter = key match {
+      case privateKey: java.security.PrivateKey ⇒
+        PrivateKeyFactory.createKey(key.getEncoded)
+
+      case publicKey: java.security.PublicKey ⇒
+        PublicKeyFactory.createKey(key.getEncoded)
+
+      case _ ⇒
+        throw new IllegalArgumentException(s"Not supported: ${key.getClass}")
     }
 
     def toSubjectPublicKeyInfo: SubjectPublicKeyInfo = {
       SubjectPublicKeyInfo.getInstance(key.getEncoded)
     }
+
+    def toPrivateKeyInfo: PrivateKeyInfo = {
+      PrivateKeyInfoFactory.createPrivateKeyInfo(toAsymmetricKeyParameter)
+    }
   }
 
   implicit class SubjectPublicKeyInfoOps(subjectPublicKeyInfo: SubjectPublicKeyInfo) {
+    def toAsymmetricKeyParameter: AsymmetricKeyParameter = {
+      PublicKeyFactory.createKey(subjectPublicKeyInfo)
+    }
+
     def toPublicKey: java.security.PublicKey = {
-      PublicKeyFactory.createKey(subjectPublicKeyInfo).toPublicKey
+      toAsymmetricKeyParameter.toPublicKey
+    }
+  }
+
+  implicit class PrivateKeyInfoOps(privateKeyInfo: PrivateKeyInfo) {
+    def toAsymmetricKeyParameter: AsymmetricKeyParameter = {
+      PrivateKeyFactory.createKey(privateKeyInfo)
+    }
+
+    def toPrivateKey: PrivateKey = {
+      toAsymmetricKeyParameter.toPrivateKey
     }
   }
 
@@ -89,6 +109,10 @@ object BCConversions {
 
     def toSubjectPublicKeyInfo: SubjectPublicKeyInfo = {
       toPublicKey.toSubjectPublicKeyInfo
+    }
+
+    def toPrivateKeyInfo: PrivateKeyInfo = {
+      toPrivateKey.toPrivateKeyInfo
     }
 
     def toPrivateKey: PrivateKey = {
