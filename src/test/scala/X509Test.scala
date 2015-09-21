@@ -37,7 +37,7 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should create java key store" in {
-        val keyStore = new TLSKeyStore(TLSKeyStore.emptyKeyStore())
+        val keyStore = TLSKeyStore.empty()
         keyStore.putCertificate("ca", certificationAuthority.certificate)
         keyStore.putKeySet("test", serverKeySet)
         val outputStream = new ByteArrayOutputStream()

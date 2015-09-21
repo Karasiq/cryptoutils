@@ -28,9 +28,9 @@ object TLSKeyStore {
     def keyPair(password: String = null): AsymmetricCipherKeyPair
   }
 
-  def emptyKeyStore(password: String = defaultPassword()): KeyStore = {
+  def emptyKeyStore(): KeyStore = {
     val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
-    keyStore.load(null, password.toCharArray)
+    keyStore.load(null, null)
     keyStore
   }
 
@@ -56,6 +56,14 @@ object TLSKeyStore {
     val config = ConfigFactory.load().getConfig("karasiq.tls")
     config.getString("key-store-pass")
   }
+
+  def open(path: String, password: String): TLSKeyStore = {
+    new TLSKeyStore(keyStore(path, password), password)
+  }
+
+  def empty(): TLSKeyStore = new TLSKeyStore(emptyKeyStore(), defaultPassword())
+
+  def apply(): TLSKeyStore = new TLSKeyStore(defaultKeyStore(), defaultPassword())
 }
 
 /**

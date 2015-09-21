@@ -49,7 +49,7 @@ if (verifier.isChainValid(cert.certificateChain)) {
 ## Using Java Key Store
 ```scala
 // Open key store
-val keyStore = new TLSKeyStore(TLSKeyStore.keyStore("example.jks", "123456"), "123456")
+val keyStore = TLSKeyStore.open("example.jks", "123456")
 
 // Reading key
 val (key, chain) = (keyStore.getKey("example"), keyStore.getCertificateChain("example"))
