@@ -78,8 +78,8 @@ object PEM {
       .getOrElse(decodeAs[PEMKeyPair](data).getPrivateKeyInfo)
   }
 
-  def keyPair(data: String): AsymmetricCipherKeyPair = {
+  def keyPair(data: String): TLS.CertificateKeyPair = {
     val kp = decodeAs[PEMKeyPair](data)
-    new AsymmetricCipherKeyPair(kp.getPublicKeyInfo.toAsymmetricKeyParameter, kp.getPrivateKeyInfo.toAsymmetricKeyParameter)
+    new TLS.CertificateKeyPair(kp.getPublicKeyInfo.toAsymmetricKeyParameter, kp.getPrivateKeyInfo.toAsymmetricKeyParameter)
   }
 }

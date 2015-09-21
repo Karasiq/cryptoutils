@@ -46,6 +46,15 @@ if (verifier.isChainValid(cert.certificateChain)) {
 }
 ```
 
+## Using PEM files
+```scala
+val certificationAuthority = PEM.certificate(PEM.file("ca.crt"))
+val myCertificate = PEM.certificate(PEM.file("mycert.crt"))
+val keyPair = PEM.keyPair(PEM.file("mykey.key"))
+
+val certKey = TLS.CertificateKey(new TLS.CertificateChain(Array(myCertificate, certificationAuthority)), keyPair)
+```
+
 ## Using Java Key Store
 ```scala
 // Open key store

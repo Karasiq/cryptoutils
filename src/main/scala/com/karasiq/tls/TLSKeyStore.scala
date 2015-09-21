@@ -8,7 +8,6 @@ import com.karasiq.tls.TLSKeyStore.{CertificateEntry, KeyEntry}
 import com.karasiq.tls.internal.BCConversions._
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.IOUtils
-import org.bouncycastle.crypto.AsymmetricCipherKeyPair
 import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAKeyParameters, ECKeyParameters, RSAKeyParameters}
 
 import scala.collection.JavaConversions._
@@ -25,7 +24,7 @@ object TLSKeyStore {
   }
 
   sealed trait KeyEntry extends Entry with CertificateEntry {
-    def keyPair(password: String = null): AsymmetricCipherKeyPair
+    def keyPair(password: String = null): TLS.CertificateKeyPair
   }
 
   def emptyKeyStore(): KeyStore = {
@@ -103,7 +102,7 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
     keyStore.setCertificateEntry(alias, certificate.toJavaCertificate)
   }
 
-  def getKey(alias: String, password: String = keyStorePass): AsymmetricCipherKeyPair = {
+  def getKey(alias: String, password: String = keyStorePass): TLS.CertificateKeyPair = {
     val key = keyStore.getKey(alias, password.toCharArray)
     key.toAsymmetricCipherKeyPair(getCertificate(alias).getSubjectPublicKeyInfo)
   }
@@ -147,7 +146,7 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
 
           override def certificate: Certificate = getCertificate(a)
 
-          override def keyPair(password: String): AsymmetricCipherKeyPair = {
+          override def keyPair(password: String): TLS.CertificateKeyPair = {
             getKey(a, if (password == null) keyStorePass else password)
           }
 
