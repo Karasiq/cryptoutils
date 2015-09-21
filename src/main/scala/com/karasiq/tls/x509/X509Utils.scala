@@ -7,19 +7,17 @@ import java.time.temporal.ChronoUnit
 import java.util
 
 import com.karasiq.tls.TLS
+import com.karasiq.tls.internal.BCConversions.{DigestAlgorithm, SignatureDigestAlgorithm}
 import com.karasiq.tls.internal.TLSUtils
 import com.typesafe.config.ConfigFactory
-import org.bouncycastle.asn1.nist.NISTObjectIdentifiers
+import org.bouncycastle.asn1.ASN1Encodable
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x500.{X500Name, X500NameBuilder}
 import org.bouncycastle.asn1.x509._
-import org.bouncycastle.asn1.{ASN1Encodable, ASN1ObjectIdentifier}
 import org.bouncycastle.cert.{X509CertificateHolder, X509ExtensionUtils}
 import org.bouncycastle.jce.spec.ECParameterSpec
 import org.bouncycastle.operator.jcajce.{JcaContentSignerBuilder, JcaContentVerifierProviderBuilder, JcaDigestCalculatorProviderBuilder}
 import org.bouncycastle.operator.{ContentSigner, ContentVerifierProvider}
-
-import scala.util.Try
 
 object X509Utils {
   private val config = ConfigFactory.load().getConfig("karasiq.tls.x509-defaults")
@@ -79,18 +77,24 @@ object X509Utils {
     alternativeNamesOf(certificate).flatMap(_.getNames.find(_.getTagNo == nameId).map(_.getName))
   }
 
+  private def verifyAlgorithms(): Seq[String] = {
+    import scala.collection.JavaConversions._
+    config.getStringList("key-id-verify-with")
+  }
+
   /**
    * Compares issuer key identifier extension data with the actual issuer certificate
    * @param certificate Certificate
    * @param issuer Issuer certificate
    * @return Check result, or None if no extension present
    */
-  def compareAuthorityIdentifier(certificate: TLS.Certificate, issuer: TLS.Certificate): Option[Boolean] = {
+  def verifyAuthorityIdentifier(certificate: TLS.Certificate, issuer: TLS.Certificate): Option[Boolean] = {
     val certHolder = new X509CertificateHolder(certificate)
     Option(AuthorityKeyIdentifier.fromExtensions(certHolder.getExtensions)).map { keyId ⇒
       val utils = extensionUtils()
       val issuerId = utils.createAuthorityKeyIdentifier(new X509CertificateHolder(issuer))
-      issuerId.getAuthorityCertIssuer == keyId.getAuthorityCertIssuer && issuerId.getAuthorityCertSerialNumber == keyId.getAuthorityCertSerialNumber &&
+      Option(keyId.getAuthorityCertIssuer).fold(true)(_ == issuerId.getAuthorityCertIssuer) &&
+      Option(keyId.getAuthorityCertSerialNumber).fold(true)(_ == issuerId.getAuthorityCertSerialNumber) &&
         util.Arrays.equals(issuerId.getKeyIdentifier, keyId.getKeyIdentifier)
     }
   }
@@ -101,7 +105,7 @@ object X509Utils {
    * @param publicKey Public key info
    * @return Check result, or None if no extension present
    */
-  def comparePublicKeyIdentifier(certificate: TLS.Certificate, publicKey: SubjectPublicKeyInfo): Option[Boolean] = {
+  def verifyPublicKeyIdentifier(certificate: TLS.Certificate, publicKey: SubjectPublicKeyInfo): Option[Boolean] = {
     val certHolder = new X509CertificateHolder(certificate)
     Option(SubjectKeyIdentifier.fromExtensions(certHolder.getExtensions)).map { keyId ⇒
       val utils = extensionUtils()
@@ -167,10 +171,6 @@ object X509Utils {
     builder.build()
   }
 
-  private def signatureAlgorithmFor(keyAlg: String, hashAlg: String = defaultSignatureHash()): String = {
-    s"${hashAlg.replace("-", "").toUpperCase}with${keyAlg.toUpperCase}"
-  }
-
   private[tls] def contentVerifierProvider(certificate: TLS.Certificate): ContentVerifierProvider = {
     new JcaContentVerifierProviderBuilder()
       .setProvider(TLSUtils.provider)
@@ -178,21 +178,16 @@ object X509Utils {
   }
   
   private[tls] def contentSigner(key: PrivateKey, hashAlg: String = defaultSignatureHash()): ContentSigner = {
-    new JcaContentSignerBuilder(signatureAlgorithmFor(key.getAlgorithm))
+    new JcaContentSignerBuilder(SignatureDigestAlgorithm(key.getAlgorithm, hashAlg))
       .setProvider(TLSUtils.provider)
       .build(key)
   }
 
-  private[tls] def digestId(name: String): AlgorithmIdentifier = {
-    Try(AlgorithmIdentifier.getInstance(classOf[NISTObjectIdentifiers].getField("id_" + name.replace("-", "").toLowerCase).get(null).asInstanceOf[ASN1ObjectIdentifier]))
-      .getOrElse(throw new IllegalArgumentException("Invalid digest identifier: " + name))
-  }
-
-  private[tls] def extensionUtils(): X509ExtensionUtils = {
+  private[tls] def extensionUtils(digest: String = config.getString("key-id-algorithm")): X509ExtensionUtils = {
     val calculator = new JcaDigestCalculatorProviderBuilder()
       .setProvider(TLSUtils.provider)
       .build()
-      .get(digestId(config.getString("key-id-algorithm")))
+      .get(DigestAlgorithm(digest))
 
     new X509ExtensionUtils(calculator)
   }

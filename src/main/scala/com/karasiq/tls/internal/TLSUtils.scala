@@ -3,6 +3,7 @@ package com.karasiq.tls.internal
 import java.security.Provider
 
 import com.karasiq.tls.TLS
+import com.karasiq.tls.internal.BCConversions.CipherSuiteId
 import com.karasiq.tls.x509.CertificateVerifier
 import com.typesafe.config.ConfigFactory
 import org.bouncycastle.crypto.params._
@@ -64,15 +65,23 @@ object TLSUtils {
   }
 
   def certificateRequest(protocolVersion: ProtocolVersion, verifier: CertificateVerifier): CertificateRequest = {
-    val certificateTypes = Array(ClientCertificateType.rsa_sign, ClientCertificateType.dss_sign, ClientCertificateType.ecdsa_sign)
+    val certificateTypes = Array(ClientCertificateType.rsa_sign, ClientCertificateType.ecdsa_sign, ClientCertificateType.dss_sign)
     new CertificateRequest(certificateTypes, defaultSignatureAlgorithms(protocolVersion), authoritiesOf(verifier))
   }
 
   def certificateFor(keySet: TLS.KeySet, certificateRequest: CertificateRequest): Option[TLS.CertificateKey] = {
-    val types = certificateRequest.getCertificateTypes.toSet
-    keySet.ecdsa.filter(c ⇒ types.contains(ClientCertificateType.ecdsa_sign) && isInAuthorities(c.certificateChain, certificateRequest))
-      .orElse(keySet.rsa.filter(c ⇒ types.contains(ClientCertificateType.rsa_sign) && isInAuthorities(c.certificateChain, certificateRequest)))
-      .orElse(keySet.dsa.filter(c ⇒ types.contains(ClientCertificateType.dss_sign) && isInAuthorities(c.certificateChain, certificateRequest)))
+    val keys = certificateRequest.getCertificateTypes.flatMap {
+      case ClientCertificateType.ecdsa_sign ⇒
+        keySet.ecdsa
+
+      case ClientCertificateType.rsa_sign ⇒
+        keySet.rsa
+
+      case ClientCertificateType.dss_sign ⇒
+        keySet.dsa
+    }
+
+    keys.find(key ⇒ isInAuthorities(key.certificateChain, certificateRequest))
   }
 
   def isInAuthorities(chain: TLS.CertificateChain, certificateRequest: CertificateRequest): Boolean = {
@@ -81,24 +90,12 @@ object TLSUtils {
     }
   }
 
-  def stringAsCipherSuite(cs: String): Int = {
-    Try(classOf[CipherSuite].getField(cs).getInt(null))
-      .getOrElse(throw new IllegalArgumentException("Invalid cipher suite: " + cs))
-  }
-
-  def cipherSuiteAsString(cs: Int): String = {
-    val fields = classOf[CipherSuite].getFields
-    fields
-      .find(f ⇒ f.getType == Integer.TYPE && f.getInt(null) == cs)
-      .fold(throw new IllegalArgumentException("Unknown cipher suite: " + cs))(_.getName)
-  }
-
   /**
    * Loads cipher suites from config
    * @return BC cipher suites array
    */
   def defaultCipherSuites(): Array[Int] = {
-    val cipherSuites = config.getStringList("cipher-suites").map(stringAsCipherSuite)
+    val cipherSuites = config.getStringList("cipher-suites").map(CipherSuiteId.apply)
     require(cipherSuites.nonEmpty, "Cipher suites is empty")
     cipherSuites.toArray
   }

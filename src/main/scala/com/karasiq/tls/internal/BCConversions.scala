@@ -7,12 +7,15 @@ import java.security.{KeyFactory, PrivateKey, PublicKey}
 
 import com.karasiq.tls.TLS
 import org.apache.commons.io.IOUtils
-import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
+import org.bouncycastle.asn1.x509.{AlgorithmIdentifier, SubjectPublicKeyInfo}
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair
 import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAKeyParameters, ECKeyParameters, RSAKeyParameters}
+import org.bouncycastle.crypto.tls.CipherSuite
 import org.bouncycastle.crypto.util.{PrivateKeyFactory, PrivateKeyInfoFactory, PublicKeyFactory, SubjectPublicKeyInfoFactory}
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder
 
+import scala.util.Try
 import scala.util.control.Exception
 
 /**
@@ -41,7 +44,7 @@ object BCConversions {
         convertPKCS8Key(privateKey.getEncoded, public)
 
       case _ ⇒
-        throw new IllegalArgumentException("Not supported")
+        throw new IllegalArgumentException(s"Not supported: ${public.getClass}")
     }
 
     def toSubjectPublicKeyInfo: SubjectPublicKeyInfo = {
@@ -80,7 +83,7 @@ object BCConversions {
           "DSA"
 
         case _ ⇒
-          throw new IllegalArgumentException("Unknown key algorithm: " + key)
+          throw new IllegalArgumentException(s"Unknown key algorithm: ${key.getClass}")
       }
     }
 
@@ -131,6 +134,34 @@ object BCConversions {
 
     def toJavaCertificateChain: Array[java.security.cert.Certificate] = {
       chain.getCertificateList.map(_.toJavaCertificate)
+    }
+  }
+
+  object DigestAlgorithm {
+    def apply(name: String): AlgorithmIdentifier = {
+      val finder = new DefaultDigestAlgorithmIdentifierFinder()
+      Option(finder.find(name))
+        .getOrElse(throw new IllegalArgumentException(s"Invalid digest identifier: $name"))
+    }
+  }
+
+  object SignatureDigestAlgorithm {
+    def apply(keyAlg: String, hashAlg: String): String = {
+      s"${hashAlg.replace("-", "").toUpperCase}with${keyAlg.toUpperCase}"
+    }
+  }
+
+  object CipherSuiteId {
+    def apply(cs: String): Int = {
+      Try(classOf[CipherSuite].getField(cs).getInt(null))
+        .getOrElse(throw new IllegalArgumentException(s"Invalid cipher suite: $cs"))
+    }
+
+    def asString(cs: Int): String = {
+      val fields = classOf[CipherSuite].getFields
+      fields
+        .find(f ⇒ f.getType == Integer.TYPE && f.getInt(null) == cs)
+        .fold(throw new IllegalArgumentException(s"Unknown cipher suite: $cs"))(_.getName)
     }
   }
 }

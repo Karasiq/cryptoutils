@@ -4,6 +4,7 @@ import java.net.InetSocketAddress
 import java.nio.channels.SocketChannel
 import java.security.SecureRandom
 
+import com.karasiq.tls.internal.BCConversions.CipherSuiteId
 import com.karasiq.tls.internal.{SocketChannelWrapper, TLSUtils}
 import com.karasiq.tls.x509.CertificateVerifier
 import org.bouncycastle.crypto.tls._
@@ -31,7 +32,7 @@ class TLSClientWrapper(verifier: CertificateVerifier, address: InetSocketAddress
 
       override def notifyHandshakeComplete(): Unit = {
         handshake.trySuccess(true)
-        onInfo("Selected cipher suite: " + TLSUtils.cipherSuiteAsString(selectedCipherSuite))
+        onInfo(s"Selected cipher suite: ${CipherSuiteId.asString(selectedCipherSuite)}")
       }
 
       override def getAuthentication: TlsAuthentication = new TlsAuthentication {

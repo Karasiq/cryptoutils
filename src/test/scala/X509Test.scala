@@ -19,8 +19,8 @@ class X509Test extends FreeSpec with Matchers {
 
 
       "should verify extensions" in {
-        X509Utils.compareAuthorityIdentifier(serverKeySet.rsa.get.certificate, certificationAuthority.certificate) shouldBe Some(true)
-        X509Utils.comparePublicKeyIdentifier(serverKeySet.dsa.get.certificate, serverKeySet.dsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
+        X509Utils.verifyAuthorityIdentifier(serverKeySet.rsa.get.certificate, certificationAuthority.certificate) shouldBe Some(true)
+        X509Utils.verifyPublicKeyIdentifier(serverKeySet.dsa.get.certificate, serverKeySet.dsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
         X509Utils.getPathLengthConstraint(certificationAuthority.certificate) shouldBe Some(1)
       }
 
@@ -30,8 +30,8 @@ class X509Test extends FreeSpec with Matchers {
           val cert = keyGenerator.signRequest(request, certificationAuthority)
           val verifier = CertificateVerifier(certificationAuthority.certificate)
           assert(verifier.isChainValid(cert.getCertificateList.toList))
-          X509Utils.compareAuthorityIdentifier(cert.toTlsCertificate, certificationAuthority.certificate) shouldBe Some(true)
-          X509Utils.comparePublicKeyIdentifier(cert.toTlsCertificate, serverKeySet.ecdsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
+          X509Utils.verifyAuthorityIdentifier(cert.toTlsCertificate, certificationAuthority.certificate) shouldBe Some(true)
+          X509Utils.verifyPublicKeyIdentifier(cert.toTlsCertificate, serverKeySet.ecdsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
           println("CSR signed: " + cert.toTlsCertificate.getSubject)
         }
       }
