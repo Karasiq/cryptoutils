@@ -4,7 +4,7 @@ import java.nio.channels.{ServerSocketChannel, SocketChannel}
 
 import com.karasiq.tls._
 import com.karasiq.tls.internal.TLSUtils
-import com.karasiq.tls.x509.{CertExtension, CertificateGenerator, CertificateVerifier, X509Utils}
+import com.karasiq.tls.x509._
 import org.scalatest.{FlatSpec, Matchers}
 
 import scala.concurrent.duration._
@@ -68,7 +68,7 @@ class TLSTest extends FlatSpec with Matchers {
 
     val clientKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
 
-    val verifier = CertificateVerifier(certificationAuthority.certificate)
+    val verifier = CertificateVerifier(CertificateStatusProvider.alwaysValid, certificationAuthority.certificate)
 
     val localhost = new InetSocketAddress("127.0.0.1", 4443)
 

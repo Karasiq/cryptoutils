@@ -28,7 +28,7 @@ object CertExtension {
       CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = true)
     }
 
-    val extensions = extensionsHolder.getExtensionOIDs.map { oid ⇒
+    val extensions = extensionsHolder.getNonCriticalExtensionOIDs.map { oid ⇒
       CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = false)
     }
     critical.toSet ++ extensions.toSet
@@ -40,9 +40,9 @@ object CertExtension {
 
   def basicConstraints(ca: Boolean, pathLenConstraint: Int = 0): CertExtension = {
     if (ca && pathLenConstraint > 0)
-      CertExtension(Extension.basicConstraints, new BasicConstraints(pathLenConstraint))
+      CertExtension(Extension.basicConstraints, new BasicConstraints(pathLenConstraint), critical = true)
     else
-      CertExtension(Extension.basicConstraints, new BasicConstraints(ca))
+      CertExtension(Extension.basicConstraints, new BasicConstraints(ca), critical = true)
   }
 
   def keyUsage(usage: Int): CertExtension = {
@@ -71,12 +71,22 @@ object CertExtension {
     CertExtension(extensionId, new GeneralNames(names.flatten.toArray))
   }
 
+  def extendedKeyUsage(keyUsages: KeyPurposeId*): CertExtension = {
+    CertExtension(Extension.extendedKeyUsage, new ExtendedKeyUsage(keyUsages.toArray))
+  }
+
+  def crlDistributionUrls(urls: String*): CertExtension = {
+    val names = urls.map(new GeneralName(GeneralName.uniformResourceIdentifier, _))
+    val point = new DistributionPoint(null, new ReasonFlags(ReasonFlags.keyCompromise | ReasonFlags.cACompromise | ReasonFlags.certificateHold), new GeneralNames(names.toArray))
+    CertExtension(Extension.cRLDistributionPoints, new CRLDistPoint(Array(point)))
+  }
+
   def defaultExtensions(): Set[CertExtension] = {
-    Set(CertExtension.basicConstraints(ca = false), CertExtension.keyUsage(KeyUsage.keyEncipherment | KeyUsage.digitalSignature | KeyUsage.nonRepudiation))
+    Set(basicConstraints(ca = false), keyUsage(KeyUsage.keyEncipherment | KeyUsage.digitalSignature | KeyUsage.nonRepudiation), extendedKeyUsage(KeyPurposeId.anyExtendedKeyUsage))
   }
 
   def certificationAuthorityExtensions(pathLenConstraint: Int = 0): Set[CertExtension] = {
-    Set(CertExtension.basicConstraints(ca = true, pathLenConstraint), CertExtension.keyUsage(KeyUsage.cRLSign | KeyUsage.keyCertSign | KeyUsage.digitalSignature | KeyUsage.nonRepudiation))
+    Set(basicConstraints(ca = true, pathLenConstraint), keyUsage(KeyUsage.cRLSign | KeyUsage.keyCertSign | KeyUsage.digitalSignature | KeyUsage.nonRepudiation))
   }
 }
 

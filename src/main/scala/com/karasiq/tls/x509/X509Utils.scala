@@ -114,6 +114,19 @@ object X509Utils {
     }
   }
 
+  def getCrlDistributionUrls(certificate: TLS.Certificate): Seq[String] = {
+    val urls = CertExtension.extensionsOf(certificate).collect {
+      case CertExtension(Extension.cRLDistributionPoints, points, _) ⇒
+        CRLDistPoint.getInstance(points).getDistributionPoints.flatMap {
+          case point ⇒
+            point.getCRLIssuer.getNames
+              .filter(_.getTagNo == GeneralName.uniformResourceIdentifier)
+              .map(_.getName.toString)
+        }
+    }
+    urls.toSeq.flatten
+  }
+
   def expireDays(days: Int): Instant = {
     Instant.now().plus(days, ChronoUnit.DAYS)
   }

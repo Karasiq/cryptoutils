@@ -107,7 +107,7 @@ object CertificateVerifier {
    * @param trustStore Trust store
    * @return Certificate verifier
    */
-  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore()): CertificateVerifier = {
+  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore(), certificateStatusProvider: CertificateStatusProvider = CertificateStatusProvider.alwaysValid): CertificateVerifier = {
     val tlsKeyStore = new TLSKeyStore(trustStore, null)
 
     val trustedRootCertificates: Set[Certificate] = {
@@ -117,14 +117,14 @@ object CertificateVerifier {
       }.toSet
     }
 
-    new CertificateVerifierImpl(trustedRootCertificates)
+    new CertificateVerifierImpl(trustedRootCertificates, certificateStatusProvider)
   }
 
   /**
    * Creates certificate verifier, which trusts all root certificates without checking
    * @return Certificate verifier
    */
-  def trustAll(): CertificateVerifier = new CertificateVerifierImpl(Set.empty) {
+  def trustAll(): CertificateVerifier = new CertificateVerifierImpl(Set.empty, CertificateStatusProvider.alwaysValid) {
     override def isCAValid(certificate: Certificate): Boolean = true
   }
 
@@ -133,20 +133,21 @@ object CertificateVerifier {
    * @param certs Trusted root CAs
    * @return Certificate verifier
    */
-  def apply(certs: TLS.Certificate*): CertificateVerifier = {
-    new CertificateVerifierImpl(certs.toSet)
+  def apply(certificateStatusProvider: CertificateStatusProvider, certs: TLS.Certificate*): CertificateVerifier = {
+    new CertificateVerifierImpl(certs.toSet, certificateStatusProvider)
   }
 }
 
-class CertificateVerifierImpl(override val trustedRootCertificates: Set[TLS.Certificate]) extends CertificateVerifier {
+class CertificateVerifierImpl(override val trustedRootCertificates: Set[TLS.Certificate], val certificateStatusProvider: CertificateStatusProvider) extends CertificateVerifier {
   override def isCertificateValid(certificate: TLS.Certificate, issuer: TLS.Certificate): Boolean = {
     val contentVerifierProvider = X509Utils.contentVerifierProvider(issuer)
     val certHolder = new X509CertificateHolder(certificate)
 
     X509Utils.isCertificationAuthority(issuer) && X509Utils.isKeyUsageAllowed(issuer, KeyUsage.keyCertSign) &&
+      certHolder.isSignatureValid(contentVerifierProvider) && certHolder.isValidOn(new Date()) &&
+      !certificateStatusProvider.isRevoked(certificate, issuer) &&
       X509Utils.verifyAuthorityIdentifier(certificate, issuer).getOrElse(true) &&
-      X509Utils.verifyPublicKeyIdentifier(certificate, certificate.getSubjectPublicKeyInfo).getOrElse(true) &&
-      certHolder.isValidOn(new Date()) && certHolder.isSignatureValid(contentVerifierProvider)
+      X509Utils.verifyPublicKeyIdentifier(certificate, certificate.getSubjectPublicKeyInfo).getOrElse(true)
   }
 
   override def isCAValid(certificate: TLS.Certificate): Boolean = {
