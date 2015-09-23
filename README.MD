@@ -40,7 +40,7 @@ val cert: TLS.CertificateChain = keyGenerator.signRequest(request, ca) // Result
 
 ## Verifying X.509 certificate
 ```scala
-val verifier = CertificateVerifier(ca.certificate) // Or from java trust store: CertificateVerifier.fromTrustStore(CertificateVerifier.trustStore("example-trust.jks"))
+val verifier = CertificateVerifier(CertificateStatusProvider.CRL, ca.certificate) // Or from java trust store: CertificateVerifier.fromTrustStore(CertificateVerifier.trustStore("example-trust.jks"), CertificateStatusProvider.CRL)
 if (verifier.isChainValid(cert.certificateChain)) {
   println(s"Verified: ${cert.getSubject}")
 }

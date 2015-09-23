@@ -5,7 +5,7 @@ import java.security.PublicKey
 import com.karasiq.tls.TLS
 import com.karasiq.tls.internal.BCConversions._
 import org.bouncycastle.asn1.x509._
-import org.bouncycastle.asn1.{ASN1Encodable, ASN1ObjectIdentifier}
+import org.bouncycastle.asn1.{ASN1Encodable, ASN1ObjectIdentifier, DERSequence}
 import org.bouncycastle.cert.X509CertificateHolder
 
 case class CertExtension(id: ASN1ObjectIdentifier, value: ASN1Encodable, critical: Boolean = false) {
@@ -75,10 +75,18 @@ object CertExtension {
     CertExtension(Extension.extendedKeyUsage, new ExtendedKeyUsage(keyUsages.toArray))
   }
 
-  def crlDistributionUrls(urls: String*): CertExtension = {
-    val names = urls.map(new GeneralName(GeneralName.uniformResourceIdentifier, _))
-    val point = new DistributionPoint(null, new ReasonFlags(ReasonFlags.keyCompromise | ReasonFlags.cACompromise | ReasonFlags.certificateHold), new GeneralNames(names.toArray))
+  def crlDistributionUrls(issuer: TLS.Certificate, urls: String*): CertExtension = {
+    val names = new GeneralNames(urls.map(url ⇒ new GeneralName(GeneralName.uniformResourceIdentifier, url)).toArray)
+    val point = new DistributionPoint(new DistributionPointName(names), new ReasonFlags(ReasonFlags.keyCompromise | ReasonFlags.cACompromise | ReasonFlags.certificateHold), new GeneralNames(new GeneralName(issuer.getSubject)))
     CertExtension(Extension.cRLDistributionPoints, new CRLDistPoint(Array(point)))
+  }
+
+  def authorityInfoAccess(certUrl: String, ocspUrl: String): CertExtension = {
+    val url = new AccessDescription(AccessDescription.id_ad_caIssuers, new GeneralName(GeneralName.uniformResourceIdentifier, certUrl))
+    val ocsp = new AccessDescription(AccessDescription.id_ad_ocsp, new GeneralName(GeneralName.uniformResourceIdentifier, ocspUrl))
+    val sequence = new DERSequence(Array[ASN1Encodable](url, ocsp))
+    val access = AuthorityInformationAccess.getInstance(sequence)
+    CertExtension(Extension.authorityInfoAccess, access)
   }
 
   def defaultExtensions(): Set[CertExtension] = {

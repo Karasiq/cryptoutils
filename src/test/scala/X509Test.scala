@@ -5,20 +5,29 @@ import com.karasiq.tls.internal.TLSUtils
 import com.karasiq.tls.pem.PEM
 import com.karasiq.tls.x509._
 import com.karasiq.tls.x509.crl.CRL
+import com.karasiq.tls.x509.ocsp.OCSP
+import com.karasiq.tls.x509.ocsp.OCSP.Status
 import com.karasiq.tls.{TLS, TLSKeyStore}
+import org.apache.commons.io.IOUtils
 import org.bouncycastle.asn1.x509
+import org.bouncycastle.asn1.x509.CRLReason
 import org.scalatest.{FreeSpec, Matchers}
 
 import scala.util.control.Exception
 
 class X509Test extends FreeSpec with Matchers {
+  private def resource(name: String) = {
+    val stream = getClass.getClassLoader.getResourceAsStream(name)
+    Exception.allCatch.andFinally(IOUtils.closeQuietly(stream))(IOUtils.toString(stream))
+  }
+
   "Certificate generator" - {
     val keyGenerator = CertificateGenerator()
 
     "With generated keys" - {
       val certificationAuthority = keyGenerator.generateEcdsa(X509Utils.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSUtils.getEllipticCurve("secp256k1"), extensions = CertExtension.certificationAuthorityExtensions(1))
 
-      val serverKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = CertExtension.defaultExtensions() ++ Set(CertExtension.crlDistributionUrls("http://localhost/test.crl")))
+      val serverKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Server", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Server", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(1), extensions = CertExtension.defaultExtensions() ++ Set(CertExtension.crlDistributionUrls(certificationAuthority.certificate, "http://localhost/test.crl")))
 
       "should print certificate" in {
         val encoded = PEM.encode(certificationAuthority.certificate)
@@ -47,7 +56,7 @@ class X509Test extends FreeSpec with Matchers {
         println(encoded)
         assert(PEM.certificationRequest(encoded).getSubject == request.getSubject)
         val cert = keyGenerator.signRequest(request, certificationAuthority)
-        val verifier = CertificateVerifier(CertificateStatusProvider.alwaysValid, certificationAuthority.certificate)
+        val verifier = CertificateVerifier(CertificateStatusProvider.AlwaysValid, certificationAuthority.certificate)
         assert(verifier.isChainValid(cert.getCertificateList.toList))
         X509Utils.verifyAuthorityIdentifier(cert.toTlsCertificate, certificationAuthority.certificate) shouldBe Some(true)
         X509Utils.verifyPublicKeyIdentifier(cert.toTlsCertificate, serverKeySet.ecdsa.get.key.getPublic.toSubjectPublicKeyInfo) shouldBe Some(true)
@@ -55,7 +64,9 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should read CRL" in {
-        val crl = CRL.fromUrl("http://crl3.digicert.com/sha2-ev-server-g1.crl")
+        val issuer = PEM.certificate(resource("ocsp-crl-issuer.crt"))
+        X509Utils.getCrlDistributionUrls(PEM.certificate(resource("ocsp-crl-issuer.crt"))).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
+        val Some(crl) = CRL.fromUrl("http://pki.google.com/GIAG2.crl", issuer)
         println(crl.getIssuer)
         println(PEM.encode(crl))
       }
@@ -65,6 +76,20 @@ class X509Test extends FreeSpec with Matchers {
         assert(CRL.verify(crl, certificationAuthority.certificate), "Couldn't verify CRL signature")
         assert(CRL.contains(crl, serverKeySet.rsa.get.certificate))
         println(PEM.encode(crl))
+      }
+
+      "should create OCSP response" in {
+        val ocsp = OCSP.response(certificationAuthority, Status(OCSP.id(certificationAuthority.certificate, BigInt(1)), OCSP.Status.revoked(CRLReason.keyCompromise)))
+        assert(OCSP.verify(ocsp, certificationAuthority.certificate), "Signature not valid")
+        assert(OCSP.Status.wrap(ocsp.getResponses).find(_.id.getSerialNumber == BigInt(1).underlying()).exists(_.isRevoked), "Not revoked")
+      }
+
+      "should read OCSP response" in {
+        val cert = PEM.certificate(resource("ocsp-test.crt"))
+        val issuer = PEM.certificate(resource("ocsp-crl-issuer.crt"))
+        val status = OCSP.getStatus(cert, issuer)
+        status.exists(_.isRevoked) shouldBe false
+        status.map(_.status) shouldBe Some(OCSP.Status.good())
       }
 
       "should create java key store" in {

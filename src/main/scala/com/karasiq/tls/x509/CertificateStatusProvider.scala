@@ -3,32 +3,65 @@ package com.karasiq.tls.x509
 import com.karasiq.tls.TLS
 import com.karasiq.tls.TLS.Certificate
 import com.karasiq.tls.x509.crl.CRL
-import org.bouncycastle.asn1.x500.X500Name
+import com.karasiq.tls.x509.ocsp.OCSP
 import org.bouncycastle.cert.X509CRLHolder
 
 import scala.collection.concurrent.TrieMap
 
-// TODO: OCSP
+/**
+ * Certificate revocation status provider trait
+ */
 trait CertificateStatusProvider {
+  /**
+   * Is certificate revoked
+   * @param certificate Certificate
+   * @param issuer Issuer certificate
+   * @return Is certificate revoked
+   */
   def isRevoked(certificate: TLS.Certificate, issuer: TLS.Certificate): Boolean
 }
 
 object CertificateStatusProvider {
-  def crl(): CertificateStatusProvider = new CRLOnlineCertificateStatusProvider()
+  /**
+   * CRL-based certificate status provider
+   * @note Uses internet for verification
+   */
+  val CRL: CertificateStatusProvider = new CRLOnlineCertificateStatusProvider()
 
-  val alwaysValid = new CertificateStatusProvider {
+  /**
+   * OCSP-based certificate status provider
+   * @note Uses internet for verification
+   */
+  val OCSP: CertificateStatusProvider = new OCSPOnlineCertificateStatusProvider()
+
+  /**
+   * Always valid certificate status provider
+   */
+  object AlwaysValid extends CertificateStatusProvider {
     override def isRevoked(certificate: Certificate, issuer: Certificate): Boolean = false
   }
 }
 
 final class CRLOnlineCertificateStatusProvider extends CertificateStatusProvider {
-  private val cache = TrieMap.empty[X500Name, Seq[X509CRLHolder]]
+  private val cache = TrieMap.empty[(Seq[String], Certificate), Seq[X509CRLHolder]]
 
-  private def loadCRL(certificate: Certificate): Seq[X509CRLHolder] = {
-    cache.getOrElseUpdate(certificate.getIssuer, CRL.getRevocationLists(certificate))
+  private def loadCRL(certificate: Certificate, issuer: Certificate): Seq[X509CRLHolder] = {
+    cache.getOrElseUpdate(X509Utils.getCrlDistributionUrls(issuer) → issuer, CRL.getRevocationLists(certificate, issuer))
   }
 
   override def isRevoked(certificate: Certificate, issuer: Certificate): Boolean = {
-    loadCRL(certificate).exists(crl ⇒ CRL.verify(crl, issuer) && CRL.contains(crl, certificate))
+    loadCRL(certificate, issuer).exists(crl ⇒ CRL.verify(crl, issuer) && CRL.contains(crl, certificate))
+  }
+}
+
+final class OCSPOnlineCertificateStatusProvider extends CertificateStatusProvider {
+  private val cache = TrieMap.empty[Certificate, Option[OCSP.Status]]
+
+  private def loadOCSP(certificate: Certificate, issuer: Certificate): Option[OCSP.Status] = {
+    cache.getOrElseUpdate(certificate, OCSP.getStatus(certificate, issuer))
+  }
+
+  override def isRevoked(certificate: Certificate, issuer: Certificate): Boolean = {
+    loadOCSP(certificate, issuer).exists(_.isRevoked)
   }
 }

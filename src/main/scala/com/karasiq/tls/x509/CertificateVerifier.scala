@@ -105,9 +105,10 @@ object CertificateVerifier {
   /**
    * Creates certificate verifier from JKS trust store
    * @param trustStore Trust store
+   * @param certificateStatusProvider Certificate revocation status provider
    * @return Certificate verifier
    */
-  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore(), certificateStatusProvider: CertificateStatusProvider = CertificateStatusProvider.alwaysValid): CertificateVerifier = {
+  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore(), certificateStatusProvider: CertificateStatusProvider = CertificateStatusProvider.AlwaysValid): CertificateVerifier = {
     val tlsKeyStore = new TLSKeyStore(trustStore, null)
 
     val trustedRootCertificates: Set[Certificate] = {
@@ -124,12 +125,13 @@ object CertificateVerifier {
    * Creates certificate verifier, which trusts all root certificates without checking
    * @return Certificate verifier
    */
-  def trustAll(): CertificateVerifier = new CertificateVerifierImpl(Set.empty, CertificateStatusProvider.alwaysValid) {
+  def trustAll(): CertificateVerifier = new CertificateVerifierImpl(Set.empty, CertificateStatusProvider.AlwaysValid) {
     override def isCAValid(certificate: Certificate): Boolean = true
   }
 
   /**
    * Creates certificate verifier from set of trusted certificates
+   * @param certificateStatusProvider Certificate revocation status provider
    * @param certs Trusted root CAs
    * @return Certificate verifier
    */

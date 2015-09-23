@@ -68,7 +68,7 @@ class TLSTest extends FlatSpec with Matchers {
 
     val clientKeySet = keyGenerator.generateKeySet(X509Utils.subject("Localhost Client", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Client", "karasiq@karasiq.com"), 2048, 1024, TLSUtils.getEllipticCurve("secp256k1"), Some(certificationAuthority), BigInt(2))
 
-    val verifier = CertificateVerifier(CertificateStatusProvider.alwaysValid, certificationAuthority.certificate)
+    val verifier = CertificateVerifier(CertificateStatusProvider.AlwaysValid, certificationAuthority.certificate)
 
     val localhost = new InetSocketAddress("127.0.0.1", 4443)
 

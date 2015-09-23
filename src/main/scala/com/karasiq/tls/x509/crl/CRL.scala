@@ -16,6 +16,10 @@ import org.bouncycastle.cert.{X509CRLHolder, X509CertificateHolder, X509v2CRLBui
 
 import scala.util.control.Exception
 
+/**
+ * Certificate revocation list utility
+ * @see [[https://en.wikipedia.org/wiki/Revocation_list]]
+ */
 object CRL {
   private val config = ConfigFactory.load().getConfig("karasiq.tls.crl-defaults")
 
@@ -29,7 +33,16 @@ object CRL {
   case class RevokedCert(cert: TLS.Certificate, reason: Int = CRLReason.unspecified, revocationDate: Instant = Instant.now()) extends Revoked
   case class RevokedCerts(crl: X509CRLHolder) extends Revoked
 
+  /**
+   * Creates certificate revocation list
+   * @param issuer CRL issuer credentials
+   * @param revoked Revoked certificates
+   * @param nextUpdate Next CRL availability time
+   * @return Certificate revocation list
+   */
   def build(issuer: TLS.CertificateKey, revoked: Seq[Revoked], nextUpdate: Instant = defaultNextUpdate()): X509CRLHolder = {
+    assert(X509Utils.isKeyUsageAllowed(issuer.certificate, KeyUsage.cRLSign), "CRL signing not allowed")
+
     val builder = new X509v2CRLBuilder(issuer.certificate.getSubject, new Date())
     val extensionUtils = X509Utils.extensionUtils(config.getString("key-id-algorithm"))
     val contentSigner = X509Utils.contentSigner(issuer.key.getPrivate.toPrivateKey, config.getString("sign-algorithm"))
@@ -58,24 +71,44 @@ object CRL {
     builder.build(contentSigner)
   }
 
+  /**
+   * Verifies CRL signature
+   * @param crl Certificate revocation list
+   * @param issuer CRL issuer certificate
+   * @return Is signature valid
+   */
   def verify(crl: X509CRLHolder, issuer: TLS.Certificate): Boolean = {
-    val verifier = X509Utils.contentVerifierProvider(issuer)
-    X509Utils.isKeyUsageAllowed(issuer, KeyUsage.cRLSign) && crl.isSignatureValid(verifier)
+    X509Utils.isKeyUsageAllowed(issuer, KeyUsage.cRLSign) && crl.isSignatureValid(X509Utils.contentVerifierProvider(issuer))
   }
 
+  /**
+   * Checks if CRL contains certificate
+   * @param crl Certificate revocation list
+   * @param cert Certificate
+   * @return Is certificate revoked
+   */
   def contains(crl: X509CRLHolder, cert: TLS.Certificate): Boolean = {
     crl.getRevokedCertificate(cert.getSerialNumber.getValue) != null
   }
 
-  def fromUrl(url: String): X509CRLHolder = {
-    val inputStream = new URL(url).openStream()
-    Exception.allCatch.andFinally(inputStream.close()) {
-      new X509CRLHolder(inputStream)
+  /**
+   * Tries to load certificate revocation list from specified URL
+   * @param url URL
+   * @param issuer CRL issuer
+   * @return Certificate revocation list or [[None]]
+   */
+  def fromUrl(url: String, issuer: TLS.Certificate): Option[X509CRLHolder] = {
+    val holder = {
+      val inputStream = new URL(url).openStream()
+      Exception.allCatch.andFinally(inputStream.close()) {
+        new X509CRLHolder(inputStream)
+      }
     }
+    Some(holder).filter(verify(_, issuer))
   }
 
-  def getRevocationLists(cert: TLS.Certificate): Seq[X509CRLHolder] = {
+  def getRevocationLists(cert: TLS.Certificate, issuer: TLS.Certificate): Seq[X509CRLHolder] = {
     val urls = X509Utils.getCrlDistributionUrls(cert)
-    urls.map(fromUrl)
+    urls.flatMap(fromUrl(_, issuer))
   }
 }
