@@ -2,9 +2,9 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.3-SNAPSHOT"
+version := "1.3"
 
-isSnapshot := true
+isSnapshot := false
 
 scalaVersion := "2.11.7"
 
@@ -34,7 +34,7 @@ publishArtifact in Test := false
 
 pomIncludeRepository := { _ ⇒ false }
 
-licenses := Seq("The MIT License" -> url("http://opensource.org/licenses/MIT"))
+licenses := Seq("The MIT License" → url("http://opensource.org/licenses/MIT"))
 
 homepage := Some(url("https://github.com/Karasiq/" + name.value))
 

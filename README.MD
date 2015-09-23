@@ -4,7 +4,7 @@ Provides Scala wrappers for JCA/BouncyCastle classes
 # How to use
 Add to `build.sbt`:
 ```scala
-libraryDependencies += "com.github.karasiq" %% "cryptoutils" % "1.2"
+libraryDependencies += "com.github.karasiq" %% "cryptoutils" % "1.3"
 ```
 
 # Managing key pairs and certificates
