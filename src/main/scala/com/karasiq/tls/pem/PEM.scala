@@ -1,9 +1,10 @@
 package com.karasiq.tls.pem
 
-import java.io.{FileInputStream, StringReader, StringWriter}
+import java.io.{InputStream, StringReader, StringWriter}
 
 import com.karasiq.tls.TLS
 import com.karasiq.tls.internal.BCConversions._
+import com.karasiq.tls.internal.ObjectLoader
 import org.apache.commons.io.IOUtils
 import org.bouncycastle.asn1.pkcs.PrivateKeyInfo
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo
@@ -15,9 +16,11 @@ import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
 
 import scala.util.Try
-import scala.util.control.Exception
 
-object PEM {
+/**
+ * PEM-encoding utility
+ */
+object PEM extends ObjectLoader[String] {
   def encode(data: AnyRef): String = {
     val stringWriter = new StringWriter(4096)
     val writer = new JcaPEMWriter(stringWriter)
@@ -47,19 +50,13 @@ object PEM {
     reader.readObject()
   }
 
+  @throws[IllegalArgumentException]("if object type not match")
   def decodeAs[T](data: String)(implicit m: Manifest[T]) = decode(data) match {
     case result: T ⇒
       result
 
     case _ ⇒
       throw new IllegalArgumentException("Invalid object type")
-  }
-
-  def file(path: String): String = {
-    val inputStream = new FileInputStream(path)
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
-      IOUtils.toString(inputStream, "ASCII")
-    }
   }
 
   def certificate(data: String): TLS.Certificate = {
@@ -81,5 +78,13 @@ object PEM {
   def keyPair(data: String): TLS.CertificateKeyPair = {
     val kp = decodeAs[PEMKeyPair](data)
     new TLS.CertificateKeyPair(kp.getPublicKeyInfo.toAsymmetricKeyParameter, kp.getPrivateKeyInfo.toAsymmetricKeyParameter)
+  }
+
+  override def fromInputStream(inputStream: InputStream): String = {
+    IOUtils.toString(inputStream)
+  }
+
+  override def fromBytes(bytes: Array[Byte]): String = {
+    new String(bytes)
   }
 }

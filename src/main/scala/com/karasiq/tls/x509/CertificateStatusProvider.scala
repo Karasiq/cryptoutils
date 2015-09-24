@@ -24,13 +24,13 @@ trait CertificateStatusProvider {
 object CertificateStatusProvider {
   /**
    * CRL-based certificate status provider
-   * @note Uses internet for verification
+   * @note Uses internet for verification and caches the result
    */
   val CRL: CertificateStatusProvider = new CRLOnlineCertificateStatusProvider()
 
   /**
    * OCSP-based certificate status provider
-   * @note Uses internet for verification
+   * @note Uses internet for verification and caches the result
    */
   val OCSP: CertificateStatusProvider = new OCSPOnlineCertificateStatusProvider()
 
@@ -42,10 +42,10 @@ object CertificateStatusProvider {
   }
 }
 
-final class CRLOnlineCertificateStatusProvider extends CertificateStatusProvider {
-  private val cache = TrieMap.empty[(Seq[String], Certificate), Seq[X509CRLHolder]]
+class CRLOnlineCertificateStatusProvider extends CertificateStatusProvider {
+  protected val cache = TrieMap.empty[(Seq[String], Certificate), Seq[X509CRLHolder]]
 
-  private def loadCRL(certificate: Certificate, issuer: Certificate): Seq[X509CRLHolder] = {
+  protected def loadCRL(certificate: Certificate, issuer: Certificate): Seq[X509CRLHolder] = {
     cache.getOrElseUpdate(X509Utils.getCrlDistributionUrls(issuer) → issuer, CRL.getRevocationLists(certificate, issuer))
   }
 
@@ -54,10 +54,10 @@ final class CRLOnlineCertificateStatusProvider extends CertificateStatusProvider
   }
 }
 
-final class OCSPOnlineCertificateStatusProvider extends CertificateStatusProvider {
-  private val cache = TrieMap.empty[Certificate, Option[OCSP.Status]]
+class OCSPOnlineCertificateStatusProvider extends CertificateStatusProvider {
+  protected val cache = TrieMap.empty[Certificate, Option[OCSP.Status]]
 
-  private def loadOCSP(certificate: Certificate, issuer: Certificate): Option[OCSP.Status] = {
+  protected def loadOCSP(certificate: Certificate, issuer: Certificate): Option[OCSP.Status] = {
     cache.getOrElseUpdate(certificate, OCSP.getStatus(certificate, issuer))
   }
 

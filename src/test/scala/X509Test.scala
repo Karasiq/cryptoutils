@@ -5,10 +5,10 @@ import com.karasiq.tls.internal.TLSUtils
 import com.karasiq.tls.pem.PEM
 import com.karasiq.tls.x509._
 import com.karasiq.tls.x509.crl.CRL
+import com.karasiq.tls.x509.crl.CRLHolder.RevokedCert
 import com.karasiq.tls.x509.ocsp.OCSP
 import com.karasiq.tls.x509.ocsp.OCSP.Status
 import com.karasiq.tls.{TLS, TLSKeyStore}
-import org.apache.commons.io.IOUtils
 import org.bouncycastle.asn1.x509
 import org.bouncycastle.asn1.x509.CRLReason
 import org.scalatest.{FreeSpec, Matchers}
@@ -16,11 +16,6 @@ import org.scalatest.{FreeSpec, Matchers}
 import scala.util.control.Exception
 
 class X509Test extends FreeSpec with Matchers {
-  private def resource(name: String) = {
-    val stream = getClass.getClassLoader.getResourceAsStream(name)
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(stream))(IOUtils.toString(stream))
-  }
-
   "Certificate generator" - {
     val keyGenerator = CertificateGenerator()
 
@@ -64,15 +59,16 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should read CRL" in {
-        val issuer = PEM.certificate(resource("ocsp-crl-issuer.crt"))
-        X509Utils.getCrlDistributionUrls(PEM.certificate(resource("ocsp-crl-issuer.crt"))).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
-        val Some(crl) = CRL.fromUrl("http://pki.google.com/GIAG2.crl", issuer)
+        val issuer = PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))
+        X509Utils.getCrlDistributionUrls(PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
+        val crl = CRL.fromURL("http://pki.google.com/GIAG2.crl")
+        assert(CRL.verify(crl, issuer), "Invalid CRL signature")
         println(crl.getIssuer)
         println(PEM.encode(crl))
       }
 
       "should create CRL" in {
-        val crl = CRL.build(certificationAuthority, Seq(CRL.RevokedCert(serverKeySet.rsa.get.certificate, x509.CRLReason.keyCompromise)))
+        val crl = CRL.build(certificationAuthority, Seq(RevokedCert(serverKeySet.rsa.get.certificate, x509.CRLReason.keyCompromise)))
         assert(CRL.verify(crl, certificationAuthority.certificate), "Couldn't verify CRL signature")
         assert(CRL.contains(crl, serverKeySet.rsa.get.certificate))
         println(PEM.encode(crl))
@@ -85,8 +81,8 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should read OCSP response" in {
-        val cert = PEM.certificate(resource("ocsp-test.crt"))
-        val issuer = PEM.certificate(resource("ocsp-crl-issuer.crt"))
+        val cert = PEM.certificate(PEM.fromResource("ocsp-test.crt"))
+        val issuer = PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))
         val status = OCSP.getStatus(cert, issuer)
         status.exists(_.isRevoked) shouldBe false
         status.map(_.status) shouldBe Some(OCSP.Status.good())

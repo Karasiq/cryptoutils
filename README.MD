@@ -40,7 +40,7 @@ val cert: TLS.CertificateChain = keyGenerator.signRequest(request, ca) // Result
 
 ## Verifying X.509 certificate
 ```scala
-val verifier = CertificateVerifier(CertificateStatusProvider.CRL, ca.certificate) // Or from java trust store: CertificateVerifier.fromTrustStore(CertificateVerifier.trustStore("example-trust.jks"), CertificateStatusProvider.CRL)
+val verifier = CertificateVerifier(CertificateStatusProvider.CRL, ca.certificate) // Or from java trust store: CertificateVerifier.fromTrustStore(TrustStore.fromFile("example-trust.jks"), CertificateStatusProvider.CRL)
 if (verifier.isChainValid(cert.certificateChain)) {
   println(s"Verified: ${cert.getSubject}")
 }
@@ -48,9 +48,9 @@ if (verifier.isChainValid(cert.certificateChain)) {
 
 ## Using PEM files
 ```scala
-val certificationAuthority = PEM.certificate(PEM.file("ca.crt"))
-val myCertificate = PEM.certificate(PEM.file("mycert.crt"))
-val keyPair = PEM.keyPair(PEM.file("mykey.key"))
+val certificationAuthority = PEM.certificate(PEM.fromFile("ca.crt"))
+val myCertificate = PEM.certificate(PEM.fromFile("mycert.crt"))
+val keyPair = PEM.keyPair(PEM.fromFile("mykey.key"))
 
 val certKey = TLS.CertificateKey(new TLS.CertificateChain(Array(myCertificate, certificationAuthority)), keyPair)
 ```

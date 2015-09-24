@@ -1,9 +1,6 @@
 package com.karasiq.tls.x509
 
-import java.security.PublicKey
-
 import com.karasiq.tls.TLS
-import com.karasiq.tls.internal.BCConversions._
 import org.bouncycastle.asn1.x509._
 import org.bouncycastle.asn1.{ASN1Encodable, ASN1ObjectIdentifier, DERSequence}
 import org.bouncycastle.cert.X509CertificateHolder
@@ -23,7 +20,7 @@ case class CertExtension(id: ASN1ObjectIdentifier, value: ASN1Encodable, critica
 }
 
 object CertExtension {
-  def wrap(extensionsHolder: Extensions): Set[CertExtension] = {
+  def wrap(extensionsHolder: Extensions): Seq[CertExtension] = {
     val critical = extensionsHolder.getCriticalExtensionOIDs.map { oid ⇒
       CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = true)
     }
@@ -31,10 +28,10 @@ object CertExtension {
     val extensions = extensionsHolder.getNonCriticalExtensionOIDs.map { oid ⇒
       CertExtension(oid, extensionsHolder.getExtension(oid).getParsedValue, critical = false)
     }
-    critical.toSet ++ extensions.toSet
+    critical.toSeq ++ extensions.toSeq
   }
 
-  def extensionsOf(cert: TLS.Certificate): Set[CertExtension] = {
+  def extensionsOf(cert: TLS.Certificate): Seq[CertExtension] = {
     wrap(new X509CertificateHolder(cert).getExtensions)
   }
 
@@ -49,11 +46,18 @@ object CertExtension {
     CertExtension(Extension.keyUsage, new KeyUsage(usage))
   }
 
-  def identifiers(key: PublicKey, issuer: Option[TLS.CertificateKey] = None): Set[CertExtension] = {
+  def authorityKeyId(issuer: TLS.Certificate): CertExtension = {
     val utils = X509Utils.extensionUtils()
-    Set(CertExtension(Extension.subjectKeyIdentifier, utils.createSubjectKeyIdentifier(key.toSubjectPublicKeyInfo))) ++ issuer.map { cert ⇒
-      CertExtension(Extension.authorityKeyIdentifier, utils.createAuthorityKeyIdentifier(new X509CertificateHolder(cert.certificate)))
-    }
+    CertExtension(Extension.authorityKeyIdentifier, utils.createAuthorityKeyIdentifier(new X509CertificateHolder(issuer)))
+  }
+
+  def subjectKeyId(key: SubjectPublicKeyInfo): CertExtension = {
+    val utils = X509Utils.extensionUtils()
+    CertExtension(Extension.subjectKeyIdentifier, utils.createSubjectKeyIdentifier(key))
+  }
+
+  def identifiers(key: SubjectPublicKeyInfo, issuer: Option[TLS.Certificate] = None): Set[CertExtension] = {
+    Set(subjectKeyId(key)) ++ issuer.map(authorityKeyId)
   }
 
   def alternativeName(otherName: String = null, rfc822Name: String = null, dNSName: String = null, x400Address: String = null, directoryName: String = null, ediPartyName: String = null, uniformResourceIdentifier: String = null, iPAddress: String = null, registeredID: String = null, extensionId: ASN1ObjectIdentifier = Extension.subjectAlternativeName): CertExtension = {

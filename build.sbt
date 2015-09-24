@@ -2,9 +2,9 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.3"
+version := "1.4-SNAPSHOT"
 
-isSnapshot := false
+isSnapshot := true
 
 scalaVersion := "2.11.7"
 

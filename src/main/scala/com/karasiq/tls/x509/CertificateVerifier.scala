@@ -1,6 +1,5 @@
 package com.karasiq.tls.x509
 
-import java.io.FileInputStream
 import java.net.InetAddress
 import java.security.KeyStore
 import java.util
@@ -8,7 +7,6 @@ import java.util.Date
 
 import com.karasiq.tls.TLS.Certificate
 import com.karasiq.tls.{TLS, TLSKeyStore}
-import com.typesafe.config.ConfigFactory
 import org.bouncycastle.asn1.x500.style.BCStyle
 import org.bouncycastle.asn1.x509.{GeneralName, KeyUsage}
 import org.bouncycastle.asn1.{ASN1Encodable, DEROctetString}
@@ -16,7 +14,6 @@ import org.bouncycastle.cert.X509CertificateHolder
 
 import scala.annotation.tailrec
 import scala.util.Try
-import scala.util.control.Exception
 
 trait CertificateVerifier {
   /**
@@ -79,36 +76,12 @@ trait CertificateVerifier {
 
 object CertificateVerifier {
   /**
-   * Opens specified JKS trust store
-   * @param path Trust store file path
-   * @return JKS trust store
-   */
-  def trustStore(path: String): KeyStore = {
-    val trustStore = KeyStore.getInstance(KeyStore.getDefaultType)
-
-    val inputStream = new FileInputStream(path)
-    Exception.allCatch.andFinally(inputStream.close()) {
-      trustStore.load(inputStream, null)
-      trustStore
-    }
-  }
-
-  /**
-   * Opens JKS trust store specified in configuration
-   * @return JKS trust store
-   */
-  def defaultTrustStore(): KeyStore = {
-    val config = ConfigFactory.load().getConfig("karasiq.tls")
-    this.trustStore(config.getString("trust-store"))
-  }
-
-  /**
    * Creates certificate verifier from JKS trust store
    * @param trustStore Trust store
    * @param certificateStatusProvider Certificate revocation status provider
    * @return Certificate verifier
    */
-  def fromTrustStore(trustStore: KeyStore = CertificateVerifier.defaultTrustStore(), certificateStatusProvider: CertificateStatusProvider = CertificateStatusProvider.AlwaysValid): CertificateVerifier = {
+  def fromTrustStore(trustStore: KeyStore = TrustStore.default(), certificateStatusProvider: CertificateStatusProvider = CertificateStatusProvider.AlwaysValid): CertificateVerifier = {
     val tlsKeyStore = new TLSKeyStore(trustStore, null)
 
     val trustedRootCertificates: Set[Certificate] = {
@@ -118,14 +91,14 @@ object CertificateVerifier {
       }.toSet
     }
 
-    new CertificateVerifierImpl(trustedRootCertificates, certificateStatusProvider)
+    new DefaultCertificateVerifier(trustedRootCertificates, certificateStatusProvider)
   }
 
   /**
    * Creates certificate verifier, which trusts all root certificates without checking
    * @return Certificate verifier
    */
-  def trustAll(): CertificateVerifier = new CertificateVerifierImpl(Set.empty, CertificateStatusProvider.AlwaysValid) {
+  def trustAll(): CertificateVerifier = new DefaultCertificateVerifier(Set.empty, CertificateStatusProvider.AlwaysValid) {
     override def isCAValid(certificate: Certificate): Boolean = true
   }
 
@@ -136,11 +109,11 @@ object CertificateVerifier {
    * @return Certificate verifier
    */
   def apply(certificateStatusProvider: CertificateStatusProvider, certs: TLS.Certificate*): CertificateVerifier = {
-    new CertificateVerifierImpl(certs.toSet, certificateStatusProvider)
+    new DefaultCertificateVerifier(certs.toSet, certificateStatusProvider)
   }
 }
 
-class CertificateVerifierImpl(override val trustedRootCertificates: Set[TLS.Certificate], val certificateStatusProvider: CertificateStatusProvider) extends CertificateVerifier {
+class DefaultCertificateVerifier(override val trustedRootCertificates: Set[TLS.Certificate], val certificateStatusProvider: CertificateStatusProvider) extends CertificateVerifier {
   override def isCertificateValid(certificate: TLS.Certificate, issuer: TLS.Certificate): Boolean = {
     val contentVerifierProvider = X509Utils.contentVerifierProvider(issuer)
     val certHolder = new X509CertificateHolder(certificate)

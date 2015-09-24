@@ -1,17 +1,31 @@
 package com.karasiq.tls
 
-import java.io.{FileInputStream, FileOutputStream, InputStream, OutputStream}
+import java.io.{FileOutputStream, InputStream, OutputStream}
 import java.security.KeyStore
 
 import com.karasiq.tls.TLS.{Certificate, CertificateChain, CertificateKey, KeySet}
 import com.karasiq.tls.TLSKeyStore.{CertificateEntry, KeyEntry}
 import com.karasiq.tls.internal.BCConversions._
+import com.karasiq.tls.internal.ObjectLoader
 import com.typesafe.config.ConfigFactory
 import org.apache.commons.io.IOUtils
 import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAKeyParameters, ECKeyParameters, RSAKeyParameters}
 
 import scala.collection.JavaConversions._
 import scala.util.control.Exception
+
+/**
+ * Key store loader class
+ * @param password Key store encryption password
+ * @param keyStoreType Key store type
+ */
+class KeyStoreLoader(password: String = null, keyStoreType: String = KeyStore.getDefaultType) extends ObjectLoader[KeyStore] {
+  override def fromInputStream(inputStream: InputStream): KeyStore = {
+    val keyStore = KeyStore.getInstance(keyStoreType)
+    keyStore.load(inputStream, Option(password).map(_.toCharArray).orNull)
+    keyStore
+  }
+}
 
 object TLSKeyStore {
   sealed trait Entry {
@@ -27,23 +41,14 @@ object TLSKeyStore {
     def keyPair(password: String = null): TLS.CertificateKeyPair
   }
 
-  def emptyKeyStore(): KeyStore = {
-    val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
-    keyStore.load(null, null)
-    keyStore
-  }
+  def emptyKeyStore(): KeyStore = new KeyStoreLoader().fromInputStream(null)
 
   def keyStore(inputStream: InputStream, password: String): KeyStore = {
-    val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
-    keyStore.load(inputStream, password.toCharArray)
-    keyStore
+    new KeyStoreLoader(password).fromInputStream(inputStream)
   }
 
   def keyStore(path: String, password: String): KeyStore = {
-    val inputStream = new FileInputStream(path)
-    Exception.allCatch.andFinally(inputStream.close()) {
-      keyStore(inputStream, password)
-    }
+    new KeyStoreLoader(password).fromFile(path)
   }
 
   def defaultKeyStore(): KeyStore = {

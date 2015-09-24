@@ -8,8 +8,9 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest
 import scala.util.Try
 
 object CSRUtils {
-  def extensionsOf(csr: PKCS10CertificationRequest): Set[CertExtension] = {
-    Try(CertExtension.wrap(Extensions.getInstance(csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest).head.getAttrValues.getObjectAt(0)))).getOrElse(Set())
+  def extensionsOf(csr: PKCS10CertificationRequest): Seq[CertExtension] = {
+    Try(CertExtension.wrap(Extensions.getInstance(csr.getAttributes(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest).head.getAttrValues.getObjectAt(0))))
+      .getOrElse(Nil)
   }
 
   def encodeExtensions(extensions: Set[CertExtension]): ASN1Encodable = {

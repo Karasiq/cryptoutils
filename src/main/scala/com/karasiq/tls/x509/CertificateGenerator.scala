@@ -56,7 +56,7 @@ class CertificateGenerator {
     val certificateBuilder = new X509v3CertificateBuilder(issuer.certificate.getSubject, serial.underlying(), new Date(), Date.from(notAfter),
       request.getSubject, request.getSubjectPublicKeyInfo)
     
-    (extensions ++ CertExtension.identifiers(request.getSubjectPublicKeyInfo.toPublicKey, Some(issuer)) ++ CSRUtils.extensionsOf(request)).foreach { ext ⇒
+    (extensions ++ CertExtension.identifiers(request.getSubjectPublicKeyInfo, Some(issuer.certificate)) ++ CSRUtils.extensionsOf(request)).foreach { ext ⇒
       certificateBuilder.addExtension(ext.id, ext.critical, ext.value)
     }
 
@@ -79,7 +79,7 @@ class CertificateGenerator {
     val certificateBuilder = new X509v3CertificateBuilder(issuer.fold(subject)(_.certificate.getSubject), serial.underlying(), new Date(), Date.from(notAfter),
       subject, keyPair.getPublic.toSubjectPublicKeyInfo)
 
-    (extensions ++ CertExtension.identifiers(keyPair.getPublic, issuer)).foreach {
+    (extensions ++ CertExtension.identifiers(keyPair.getPublic.toSubjectPublicKeyInfo, issuer.map(_.certificate))).foreach {
       case CertExtension(id, value, critical) ⇒
         certificateBuilder.addExtension(id, critical, value)
     }
