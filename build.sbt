@@ -2,11 +2,11 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.4-SNAPSHOT"
+version := "1.4.0-SNAPSHOT"
 
-isSnapshot := true
+isSnapshot := version.value.endsWith("SNAPSHOT")
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
 resolvers += "softprops-maven" at "http://dl.bintray.com/content/softprops/maven"
 

@@ -158,7 +158,7 @@ object OCSP {
    * @param ocsp OCSP URL
    * @param issuer OCSP issuer
    * @param request OCSP request
-   * @return OCSP response or [[None]]
+   * @return OCSP response or [[scala.None None]]
    */
   def fromUrl(ocsp: String, issuer: TLS.Certificate, request: OCSPReq): Option[BasicOCSPResp] = {
     val response = loadUrl(ocsp, request)

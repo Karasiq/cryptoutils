@@ -36,7 +36,7 @@ object X509Utils {
   /**
    * Returns chain path length constraint of CA certificate
    * @param certificate X509 certificate
-   * @return Path length constraint, or [[None]] if no extension present
+   * @return Path length constraint, or [[scala.None None]] if no extension present
    */
   def getPathLengthConstraint(certificate: TLS.Certificate): Option[Int] = {
     val certHolder = new X509CertificateHolder(certificate)
@@ -60,7 +60,7 @@ object X509Utils {
   /**
    * Reads subject alternative names (SANs) from certificate
    * @param certificate X509 certificate
-   * @return Alternative names, or [[None]] if no extension present
+   * @return Alternative names, or [[scala.None None]] if no extension present
    */
   def alternativeNamesOf(certificate: TLS.Certificate): Option[GeneralNames] = {
     val certHolder = new X509CertificateHolder(certificate)
@@ -71,7 +71,7 @@ object X509Utils {
    * Reads specified subject alternative name (SAN) from certificate
    * @param certificate X509 certificate
    * @param nameId Alternative name ID
-   * @return Alternative name, or [[None]] if no extension present
+   * @return Alternative name, or [[scala.None None]] if no extension present
    */
   def alternativeNameOf(certificate: TLS.Certificate, nameId: Int): Option[ASN1Encodable] = {
     alternativeNamesOf(certificate).flatMap(_.getNames.find(_.getTagNo == nameId).map(_.getName))
@@ -86,7 +86,7 @@ object X509Utils {
    * Compares issuer key identifier extension data with the actual issuer certificate
    * @param certificate Certificate
    * @param issuer Issuer certificate
-   * @return Check result, or [[None]] if no extension present
+   * @return Check result, or [[scala.None None]] if no extension present
    */
   def verifyAuthorityIdentifier(certificate: TLS.Certificate, issuer: TLS.Certificate): Option[Boolean] = {
     val certHolder = new X509CertificateHolder(certificate)
@@ -103,7 +103,7 @@ object X509Utils {
    * Compares subject public key identifier extension data with the actual public key
    * @param certificate Certificate
    * @param publicKey Public key info
-   * @return Check result, or [[None]] if no extension present
+   * @return Check result, or [[scala.None None]] if no extension present
    */
   def verifyPublicKeyIdentifier(certificate: TLS.Certificate, publicKey: SubjectPublicKeyInfo): Option[Boolean] = {
     val certHolder = new X509CertificateHolder(certificate)

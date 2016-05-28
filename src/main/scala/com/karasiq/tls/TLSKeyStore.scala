@@ -73,9 +73,9 @@ object TLSKeyStore {
 /**
  * JCA keystore wrapper
  * @param keyStore JCA keystore
- * @param keyStorePass JCA keystore password
+ * @param password JCA keystore password
  */
-class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePass: String = TLSKeyStore.defaultPassword()) {
+class TLSKeyStore(val keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), val password: String = TLSKeyStore.defaultPassword()) {
   def contains(alias: String): Boolean = {
     keyStore.containsAlias(alias)
   }
@@ -92,11 +92,11 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
     }
   }
 
-  def putKey(alias: String, key: TLS.CertificateKey, password: String = keyStorePass): Unit = {
+  def putKey(alias: String, key: TLS.CertificateKey, password: String = password): Unit = {
     keyStore.setKeyEntry(alias, key.key.getPrivate.toPrivateKey, password.toCharArray, key.certificateChain.toJavaCertificateChain)
   }
 
-  def putKeySet(alias: String, keySet: TLS.KeySet, password: String = keyStorePass): Unit = {
+  def putKeySet(alias: String, keySet: TLS.KeySet, password: String = password): Unit = {
     if (keyStore.isKeyEntry(alias)) delete(alias)
     keySet.rsa.foreach(key ⇒ putKey(s"$alias-rsa", key, password))
     keySet.dsa.foreach(key ⇒ putKey(s"$alias-dsa", key, password))
@@ -107,7 +107,7 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
     keyStore.setCertificateEntry(alias, certificate.toJavaCertificate)
   }
 
-  def getKey(alias: String, password: String = keyStorePass): TLS.CertificateKeyPair = {
+  def getKey(alias: String, password: String = password): TLS.CertificateKeyPair = {
     val key = keyStore.getKey(alias, password.toCharArray)
     key.toAsymmetricCipherKeyPair(getCertificate(alias).getSubjectPublicKeyInfo)
   }
@@ -116,7 +116,7 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
     keyStore.getCertificate(alias).toTlsCertificate
   }
 
-  def getKeySet(alias: String, password: String = keyStorePass): TLS.KeySet = {
+  def getKeySet(alias: String, password: String = password): TLS.KeySet = {
     def readKey[K <: AsymmetricKeyParameter](key: String)(implicit m: Manifest[K]): Option[CertificateKey] = {
       getEntry(key) match {
         case Some(e: TLSKeyStore.KeyEntry) ⇒
@@ -152,7 +152,7 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
           override def certificate: Certificate = getCertificate(a)
 
           override def keyPair(password: String): TLS.CertificateKeyPair = {
-            getKey(a, if (password == null) keyStorePass else password)
+            getKey(a, if (password == null) password else password)
           }
 
           override def alias: String = a
@@ -174,11 +174,11 @@ class TLSKeyStore(keyStore: KeyStore = TLSKeyStore.defaultKeyStore(), keyStorePa
     keyStore.aliases().toIterator.flatMap(getEntry)
   }
 
-  def save(outputStream: OutputStream, password: String = keyStorePass): Unit = {
+  def save(outputStream: OutputStream, password: String = password): Unit = {
     keyStore.store(outputStream, password.toCharArray)
   }
 
-  def saveAs(path: String, password: String = keyStorePass): Unit = {
+  def saveAs(path: String, password: String = password): Unit = {
     val outputStream = new FileOutputStream(path)
     Exception.allCatch.andFinally(IOUtils.closeQuietly(outputStream)) {
       save(outputStream, password)
