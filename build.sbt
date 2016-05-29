@@ -2,7 +2,7 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.4.0-SNAPSHOT"
+version := "1.4.0"
 
 isSnapshot := version.value.endsWith("SNAPSHOT")
 

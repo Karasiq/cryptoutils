@@ -63,7 +63,7 @@ object OCSP {
     .build()
     .get(CertificateID.HASH_SHA1)
 
-  private val secureRandom = new SecureRandom()
+  private val secureRandom = SecureRandom.getInstanceStrong
 
   /**
    * OCSP certificate ID

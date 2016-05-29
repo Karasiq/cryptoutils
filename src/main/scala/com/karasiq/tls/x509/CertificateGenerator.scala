@@ -20,7 +20,7 @@ object CertificateGenerator {
 }
 
 class CertificateGenerator {
-  protected val secureRandom: SecureRandom = new SecureRandom()
+  protected val secureRandom: SecureRandom = SecureRandom.getInstanceStrong
 
   private def makeChain(issuer: TLS.CertificateChain, certificate: TLS.Certificate): TLS.CertificateChain = {
     new TLS.CertificateChain(Array(certificate) ++ issuer.getCertificateList)

@@ -20,7 +20,7 @@ class TLSClientWrapper(verifier: CertificateVerifier, address: InetSocketAddress
   }
 
   override def apply(connection: SocketChannel): SocketChannel = {
-    val protocol = new TlsClientProtocol(SocketChannelWrapper.inputStream(connection), SocketChannelWrapper.outputStream(connection), new SecureRandom())
+    val protocol = new TlsClientProtocol(SocketChannelWrapper.inputStream(connection), SocketChannelWrapper.outputStream(connection), SecureRandom.getInstanceStrong)
     val client = new DefaultTlsClient() {
       override def getMinimumVersion: ProtocolVersion = {
         TLSUtils.minVersion()

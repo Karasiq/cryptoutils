@@ -33,7 +33,7 @@ class TLSServerWrapper(keySet: TLS.KeySet, clientAuth: Boolean = false, verifier
   }
 
   def apply(connection: SocketChannel): SocketChannel = {
-    val protocol = new TlsServerProtocol(SocketChannelWrapper.inputStream(connection), SocketChannelWrapper.outputStream(connection), new SecureRandom())
+    val protocol = new TlsServerProtocol(SocketChannelWrapper.inputStream(connection), SocketChannelWrapper.outputStream(connection), SecureRandom.getInstanceStrong)
     val server = new DefaultTlsServer() {
       override def getMinimumVersion: ProtocolVersion = {
         TLSUtils.minVersion()
