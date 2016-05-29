@@ -60,17 +60,17 @@ object CertExtension {
     Set(subjectKeyId(key)) ++ issuer.map(authorityKeyId)
   }
 
-  def alternativeName(otherName: String = null, rfc822Name: String = null, dNSName: String = null, x400Address: String = null, directoryName: String = null, ediPartyName: String = null, uniformResourceIdentifier: String = null, iPAddress: String = null, registeredID: String = null, extensionId: ASN1ObjectIdentifier = Extension.subjectAlternativeName): CertExtension = {
+  def alternativeNames(otherName: Seq[String] = Nil, rfc822Name: Seq[String] = Nil, dNSName: Seq[String] = Nil, x400Address: Seq[String] = Nil, directoryName: Seq[String] = Nil, ediPartyName: Seq[String] = Nil, uniformResourceIdentifier: Seq[String] = Nil, iPAddress: Seq[String] = Nil, registeredID: Seq[String] = Nil, extensionId: ASN1ObjectIdentifier = Extension.subjectAlternativeName): CertExtension = {
     val names = Seq(
-      Option(otherName).map(new GeneralName(GeneralName.otherName, _)),
-      Option(rfc822Name).map(new GeneralName(GeneralName.rfc822Name, _)),
-      Option(dNSName).map(new GeneralName(GeneralName.dNSName, _)),
-      Option(x400Address).map(new GeneralName(GeneralName.x400Address, _)),
-      Option(directoryName).map(new GeneralName(GeneralName.directoryName, _)),
-      Option(ediPartyName).map(new GeneralName(GeneralName.ediPartyName, _)),
-      Option(uniformResourceIdentifier).map(new GeneralName(GeneralName.uniformResourceIdentifier, _)),
-      Option(iPAddress).map(new GeneralName(GeneralName.iPAddress, _)),
-      Option(registeredID).map(new GeneralName(GeneralName.registeredID, _))
+      otherName.map(new GeneralName(GeneralName.otherName, _)),
+      rfc822Name.map(new GeneralName(GeneralName.rfc822Name, _)),
+      dNSName.map(new GeneralName(GeneralName.dNSName, _)),
+      x400Address.map(new GeneralName(GeneralName.x400Address, _)),
+      directoryName.map(new GeneralName(GeneralName.directoryName, _)),
+      ediPartyName.map(new GeneralName(GeneralName.ediPartyName, _)),
+      uniformResourceIdentifier.map(new GeneralName(GeneralName.uniformResourceIdentifier, _)),
+      iPAddress.map(new GeneralName(GeneralName.iPAddress, _)),
+      registeredID.map(new GeneralName(GeneralName.registeredID, _))
     )
     CertExtension(extensionId, new GeneralNames(names.flatten.toArray))
   }

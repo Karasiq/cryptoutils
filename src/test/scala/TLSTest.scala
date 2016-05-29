@@ -30,7 +30,7 @@ class TLSTest extends FlatSpec with Matchers {
     }
   }
 
-  "TLS client" should "connect to HTTPS" in {
+  ignore should "connect to HTTPS" in {
     val address = new InetSocketAddress("howsmyssl.com", 443)
 
     val wrapper = new TLSClientWrapper(CertificateVerifier.trustAll(), address) {
@@ -59,7 +59,7 @@ class TLSTest extends FlatSpec with Matchers {
     val keyGenerator = CertificateGenerator()
 
     def serverExtensions() = {
-      CertExtension.defaultExtensions() ++ Set(CertExtension.alternativeName(dNSName = "localhost", iPAddress = "127.0.0.1"))
+      CertExtension.defaultExtensions() ++ Set(CertExtension.alternativeNames(dNSName = Seq("localhost"), iPAddress = Seq("127.0.0.1")))
     }
 
     val certificationAuthority = keyGenerator.generateEcdsa(X509Utils.subject("Localhost Root CA", "US", "California", "San Francisco", "Karasiq", "Cryptoutils Test Root CA", "karasiq@karasiq.com"), TLSUtils.getEllipticCurve("secp256k1"), extensions = CertExtension.certificationAuthorityExtensions(1))
