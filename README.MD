@@ -4,7 +4,11 @@ Provides Scala wrappers for JCA/BouncyCastle classes
 # How to use
 Add to `build.sbt`:
 ```scala
-libraryDependencies += "com.github.karasiq" %% "cryptoutils" % "1.3"
+libraryDependencies ++= Seq(
+  "org.bouncycastle" % "bcprov-jdk15on" % "1.54",
+  "org.bouncycastle" % "bcpkix-jdk15on" % "1.54",
+  "com.github.karasiq" %% "cryptoutils" % "1.4.0"
+)
 ```
 
 # Managing key pairs and certificates
@@ -28,7 +32,7 @@ println(s"CA signed: ${cert.certificate.getSubject}")
 val keyGenerator = CertificateGenerator()
 
 val subject = X509Utils.subject("Example Subject", "US", "California", "San Francisco", "Example", "Example", "example@example.com")
-val keyPair: java.security.KeyPair = ... // Generate/load key pair
+val keyPair: java.security.KeyPair = ??? // Generate/load key pair
 
 // Creating request
 val request = keyGenerator.createRequest(keyPair, subject)
@@ -67,7 +71,7 @@ val (key, chain) = (keyStore.getKey("example"), keyStore.getCertificateChain("ex
 val keySet: TLS.KeySet = keyStore.getKeySet("example")
 
 // Adding new key
-val newKey: TLS.CertificateKey = ... // Generate key and certificate (see above)
+val newKey: TLS.CertificateKey = ??? // Generate key and certificate (see above)
 keyStore.putKey("example-new", newKey)
 
 // Saving to file
@@ -77,8 +81,8 @@ keyStore.saveAs("example.jks")
 # Using TLS (transport layer security)
 ## TLS client
 ```scala
-val verifier: CertificateVerifier = ... // Certificate verifier
-val clientKeySet: TLS.KeySet = ... // Client authorization
+val verifier: CertificateVerifier = ??? // Certificate verifier
+val clientKeySet: TLS.KeySet = ??? // Client authorization
 val address = new InetSocketAddress("example.com", 443) // Server address
 
 // Opening connection:

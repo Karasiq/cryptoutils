@@ -19,7 +19,7 @@ trait ObjectLoader[T] {
     }
   }
 
-  def fromFile(file: File): T = {
+  def fromFile(file: File): T = concurrent.blocking {
     val inputStream = new FileInputStream(file)
     Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
       fromInputStream(inputStream)
@@ -30,7 +30,7 @@ trait ObjectLoader[T] {
 
   final def fromFile(file: String): T = fromFile(new File(file))
 
-  def fromURL(url: URL): T = {
+  def fromURL(url: URL): T = concurrent.blocking {
     val inputStream = url.openStream()
     Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
       fromInputStream(inputStream)
