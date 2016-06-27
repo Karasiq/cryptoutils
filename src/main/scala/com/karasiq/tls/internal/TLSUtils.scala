@@ -17,15 +17,14 @@ import scala.collection.JavaConversions._
 import scala.util.Try
 
 object TLSUtils {
-  private[tls] lazy val provider: Provider = new BouncyCastleProvider
+  private[tls] val provider: Provider = new BouncyCastleProvider
 
   private val config = ConfigFactory.load().getConfig("karasiq.tls")
 
-  def signatureAlgorithm(key: AsymmetricKeyParameter): SignatureAndHashAlgorithm = {
+  def signatureAlgorithm(key: AsymmetricKeyParameter, hashAlgorithm: String = defaultHashAlgorithm()): SignatureAndHashAlgorithm = {
     val hash: Short = {
-      val name = config.getString("hash-algorithm")
-      Try(classOf[HashAlgorithm].getField(name.replace("-", "").toLowerCase).getShort(null))
-        .getOrElse(throw new IllegalArgumentException("Invalid hash algorithm: " + name))
+      Try(classOf[HashAlgorithm].getField(hashAlgorithm.replace("-", "").toLowerCase).getShort(null))
+        .getOrElse(throw new IllegalArgumentException(s"Invalid hash algorithm: $hashAlgorithm"))
     }
 
     val sign: Short = key match {
@@ -45,15 +44,7 @@ object TLSUtils {
     new SignatureAndHashAlgorithm(hash, sign)
   }
 
-  def defaultSignatureAlgorithms(protocolVersion: ProtocolVersion): java.util.Vector[_] = {
-    if (TlsUtils.isSignatureAlgorithmsExtensionAllowed(protocolVersion)) {
-      TlsUtils.getDefaultSupportedSignatureAlgorithms
-    } else {
-      null
-    }
-  }
-
-  def authoritiesOf(trustStore: CertificateVerifier): java.util.Vector[_] = {
+  private def authoritiesOf(trustStore: CertificateVerifier): java.util.Vector[_] = {
     @inline
     def asJavaVector(data: GenTraversableOnce[AnyRef]): java.util.Vector[AnyRef] = {
       val vector = new java.util.Vector[AnyRef]()
@@ -90,18 +81,11 @@ object TLSUtils {
     }
   }
 
-  /**
-   * Loads cipher suites from config
-   * @return BC cipher suites array
-   */
-  def defaultCipherSuites(): Array[Int] = {
-    val cipherSuites = config.getStringList("cipher-suites").map(CipherSuiteId.apply)
-    require(cipherSuites.nonEmpty, "Cipher suites is empty")
-    cipherSuites.toArray
-  }
+  private def asProtocolVersion(string: String): ProtocolVersion = string match {
+    case "SSLv3" ⇒
+      ProtocolVersion.SSLv3
 
-  private def asProtocolVersion(v: String): ProtocolVersion = v match {
-    case "TLSv1" ⇒
+    case "TLSv1" | "TLSv1.0" ⇒
       ProtocolVersion.TLSv10
 
     case "TLSv1.1" ⇒
@@ -110,8 +94,37 @@ object TLSUtils {
     case "TLSv1.2" ⇒
       ProtocolVersion.TLSv12
 
+    case "DTLSv1" | "DTLSv1.0" ⇒
+      ProtocolVersion.DTLSv10
+
+    case "DTLSv1.2" ⇒
+      ProtocolVersion.DTLSv12
+
     case _ ⇒
-      throw new IllegalArgumentException("Invalid TLS version: " + v)
+      throw new IllegalArgumentException("Invalid TLS version: " + string)
+  }
+
+  /**
+    * Loads cipher suites from config
+    * @return BC cipher suites array
+    */
+  def defaultCipherSuites(): Array[Int] = {
+    config.getStringList("cipher-suites")
+      .map(CipherSuiteId(_))
+      .ensuring(_.nonEmpty, "Cipher suites is empty")
+      .toArray
+  }
+
+  def defaultHashAlgorithm(): String = {
+    config.getString("hash-algorithm")
+  }
+
+  def defaultSignatureAlgorithms(protocolVersion: ProtocolVersion): java.util.Vector[_] = {
+    if (TlsUtils.isSignatureAlgorithmsExtensionAllowed(protocolVersion)) {
+      TlsUtils.getDefaultSupportedSignatureAlgorithms
+    } else {
+      null
+    }
   }
 
   def minVersion(): ProtocolVersion = {
@@ -124,6 +137,6 @@ object TLSUtils {
 
   def getEllipticCurve(name: String): ECParameterSpec = {
     Option(ECNamedCurveTable.getParameterSpec(name))
-      .getOrElse(throw new IllegalArgumentException("Elliptic curve not defined: " + name))
+      .getOrElse(throw new IllegalArgumentException(s"Elliptic curve not defined: $name"))
   }
 }

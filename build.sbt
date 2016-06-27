@@ -34,7 +34,7 @@ pomIncludeRepository := { _ ⇒ false }
 
 licenses := Seq("The MIT License" → url("http://opensource.org/licenses/MIT"))
 
-homepage := Some(url("https://github.com/Karasiq/" + name.value))
+homepage := Some(url(s"https://github.com/Karasiq/${name.value}"))
 
 pomExtra := <scm>
   <url>git@github.com:Karasiq/{name.value}.git</url>

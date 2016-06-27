@@ -13,19 +13,15 @@ import org.bouncycastle.crypto.AsymmetricCipherKeyPair
 import org.bouncycastle.crypto.params.{AsymmetricKeyParameter, DSAKeyParameters, ECKeyParameters, RSAKeyParameters}
 import org.bouncycastle.crypto.tls.CipherSuite
 import org.bouncycastle.crypto.util.{PrivateKeyFactory, PrivateKeyInfoFactory, PublicKeyFactory, SubjectPublicKeyInfoFactory}
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder
 
 import scala.util.Try
-import scala.util.control.Exception
 
 /**
  * Provides conversions between JCA and BouncyCastle classes
  */
 object BCConversions {
-  private val provider = new BouncyCastleProvider
-
-  implicit class JavaKeyOps(key: java.security.Key) {
+  implicit class JavaKeyOps(private val key: java.security.Key) extends AnyVal {
     private def convertPKCS8Key(data: Array[Byte], public: SubjectPublicKeyInfo): AsymmetricCipherKeyPair = {
       new AsymmetricCipherKeyPair(PublicKeyFactory.createKey(public), PrivateKeyFactory.createKey(data))
     }
@@ -58,9 +54,9 @@ object BCConversions {
     }
   }
 
-  implicit class SubjectPublicKeyInfoOps(subjectPublicKeyInfo: SubjectPublicKeyInfo) {
+  implicit class SubjectPublicKeyInfoOps(private val key: SubjectPublicKeyInfo) extends AnyVal {
     def toAsymmetricKeyParameter: AsymmetricKeyParameter = {
-      PublicKeyFactory.createKey(subjectPublicKeyInfo)
+      PublicKeyFactory.createKey(key)
     }
 
     def toPublicKey: java.security.PublicKey = {
@@ -68,9 +64,9 @@ object BCConversions {
     }
   }
 
-  implicit class PrivateKeyInfoOps(privateKeyInfo: PrivateKeyInfo) {
+  implicit class PrivateKeyInfoOps(private val key: PrivateKeyInfo) extends AnyVal {
     def toAsymmetricKeyParameter: AsymmetricKeyParameter = {
-      PrivateKeyFactory.createKey(privateKeyInfo)
+      PrivateKeyFactory.createKey(key)
     }
 
     def toPrivateKey: PrivateKey = {
@@ -78,20 +74,20 @@ object BCConversions {
     }
   }
 
-  implicit class JavaKeyPairOps(keyPair: java.security.KeyPair) {
+  implicit class JavaKeyPairOps(private val pair: java.security.KeyPair) extends AnyVal {
     def toAsymmetricCipherKeyPair: AsymmetricCipherKeyPair = {
-      keyPair.getPrivate.toAsymmetricCipherKeyPair(keyPair.getPublic.toSubjectPublicKeyInfo)
+      pair.getPrivate.toAsymmetricCipherKeyPair(pair.getPublic.toSubjectPublicKeyInfo)
     }
   }
 
-  implicit class AsymmetricCipherKeyPairOps(keyPair: AsymmetricCipherKeyPair) {
+  implicit class AsymmetricCipherKeyPairOps(private val key: AsymmetricCipherKeyPair) extends AnyVal {
     def toKeyPair: java.security.KeyPair = {
-      new java.security.KeyPair(keyPair.getPublic.toPublicKey, keyPair.getPrivate.toPrivateKey)
+      new java.security.KeyPair(key.getPublic.toPublicKey, key.getPrivate.toPrivateKey)
     }
   }
 
-  implicit class AsymmetricKeyParameterOps(key: AsymmetricKeyParameter) {
-    def algorithm(): String = {
+  implicit class AsymmetricKeyParameterOps(private val key: AsymmetricKeyParameter) extends AnyVal {
+    def algorithm: String = {
       key match {
         case _: ECKeyParameters ⇒
           "ECDSA"
@@ -116,19 +112,19 @@ object BCConversions {
     }
 
     def toPrivateKey: PrivateKey = {
-      val keyGenerator = KeyFactory.getInstance(this.algorithm(), provider)
+      val keyGenerator = KeyFactory.getInstance(this.algorithm, TLSUtils.provider)
       keyGenerator.generatePrivate(new PKCS8EncodedKeySpec(PrivateKeyInfoFactory.createPrivateKeyInfo(key).getEncoded))
     }
 
     def toPublicKey: PublicKey = {
-      val keyGenerator = KeyFactory.getInstance(this.algorithm(), provider)
+      val keyGenerator = KeyFactory.getInstance(this.algorithm, TLSUtils.provider)
       keyGenerator.generatePublic(new X509EncodedKeySpec(SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(key).getEncoded))
     }
   }
 
-  implicit class JavaCertificateOps(certificate: java.security.cert.Certificate) {
+  implicit class JavaCertificateOps(private val cert: java.security.cert.Certificate) extends AnyVal {
     def toTlsCertificate: TLS.Certificate = {
-      org.bouncycastle.asn1.x509.Certificate.getInstance(certificate.getEncoded)
+      org.bouncycastle.asn1.x509.Certificate.getInstance(cert.getEncoded)
     }
 
     def toTlsCertificateChain: TLS.CertificateChain = {
@@ -136,21 +132,23 @@ object BCConversions {
     }
   }
 
-  implicit class CertificateOps(certificate: TLS.Certificate) {
+  implicit class CertificateOps(private val cert: TLS.Certificate) extends AnyVal {
     def toTlsCertificateChain: TLS.CertificateChain = {
-      new TLS.CertificateChain(Array(certificate))
+      new TLS.CertificateChain(Array(cert))
     }
 
     def toJavaCertificate: java.security.cert.Certificate = {
       val certificateFactory = CertificateFactory.getInstance("X.509")
-      val inputStream = new ByteArrayInputStream(certificate.getEncoded)
-      Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
+      val inputStream = new ByteArrayInputStream(cert.getEncoded)
+      try {
         certificateFactory.generateCertificate(inputStream)
+      } finally {
+        IOUtils.closeQuietly(inputStream)
       }
     }
   }
 
-  implicit class CertificateChainOps(chain: TLS.CertificateChain) {
+  implicit class CertificateChainOps(private val chain: TLS.CertificateChain) extends AnyVal {
     def toTlsCertificate: TLS.Certificate = {
       chain.getCertificateList.headOption
         .getOrElse(throw new NoSuchElementException("Empty certificate chain"))
