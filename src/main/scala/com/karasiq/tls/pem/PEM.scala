@@ -1,6 +1,6 @@
 package com.karasiq.tls.pem
 
-import java.io.{InputStream, StringReader, StringWriter}
+import java.io._
 
 import com.karasiq.tls.TLS
 import com.karasiq.tls.internal.BCConversions._
@@ -15,39 +15,66 @@ import org.bouncycastle.openssl.jcajce.JcaPEMWriter
 import org.bouncycastle.openssl.{PEMKeyPair, PEMParser}
 import org.bouncycastle.pkcs.PKCS10CertificationRequest
 
-import scala.util.Try
+case class PEMObjectLoader[+T](transform: PartialFunction[AnyRef, T], offset: Int = 0) extends ObjectLoader[T] {
+  require(offset >= 0, "Invalid PEM object offset")
+
+  override def fromInputStream(inputStream: InputStream): T = {
+    val reader = new PEMParser(new InputStreamReader(inputStream))
+    try {
+      for (_ ← 0 until offset) reader.readObject()
+      transform(reader.readObject())
+    } finally {
+      IOUtils.closeQuietly(reader)
+    }
+  }
+
+  def offset(i: Int): PEMObjectLoader[T] = {
+    copy(offset = i)
+  }
+}
 
 /**
- * PEM-encoding utility
+ * PEM encoding utility
  */
-object PEM extends ObjectLoader[String] {
+object PEM {
+  @throws[IOException]
   def encode(data: AnyRef): String = {
     val stringWriter = new StringWriter(4096)
     val writer = new JcaPEMWriter(stringWriter)
-    data match {
-      case cert: TLS.Certificate ⇒
-        writer.writeObject(new X509CertificateHolder(cert))
+    try {
+      data match {
+        case cert: TLS.Certificate ⇒
+          writer.writeObject(new X509CertificateHolder(cert))
 
-      case keyPair: AsymmetricCipherKeyPair ⇒
-        writer.writeObject(new PEMKeyPair(keyPair.getPublic.toSubjectPublicKeyInfo, keyPair.getPrivate.toPrivateKeyInfo))
+        case keyPair: AsymmetricCipherKeyPair ⇒
+          writer.writeObject(new PEMKeyPair(keyPair.getPublic.toSubjectPublicKeyInfo, keyPair.getPrivate.toPrivateKeyInfo))
 
-      case key: AsymmetricKeyParameter if key.isPrivate ⇒
-        writer.writeObject(key.toPrivateKeyInfo)
+        case key: AsymmetricKeyParameter if key.isPrivate ⇒
+          writer.writeObject(key.toPrivateKeyInfo)
 
-      case key: AsymmetricKeyParameter if !key.isPrivate ⇒
-        writer.writeObject(key.toSubjectPublicKeyInfo)
+        case key: AsymmetricKeyParameter if !key.isPrivate ⇒
+          writer.writeObject(key.toSubjectPublicKeyInfo)
 
-      case _ ⇒
-        writer.writeObject(data)
+        case _ ⇒
+          writer.writeObject(data)
+      }
+
+      writer.flush()
+      stringWriter.toString
+    } finally {
+      IOUtils.closeQuietly(writer)
     }
-
-    writer.flush()
-    stringWriter.toString
   }
 
-  def decode(data: String): AnyRef = {
+  @throws[IOException]
+  def decode(data: String, offset: Int = 0): AnyRef = {
     val reader = new PEMParser(new StringReader(data))
-    reader.readObject()
+    try {
+      for (_ ← 0 until offset) reader.readObject()
+      reader.readObject()
+    } finally {
+      IOUtils.closeQuietly(reader)
+    }
   }
 
   @throws[IllegalArgumentException]("if object type not match")
@@ -59,32 +86,34 @@ object PEM extends ObjectLoader[String] {
       throw new IllegalArgumentException("Invalid object type")
   }
 
-  def certificate(data: String): TLS.Certificate = {
-    decodeAs[X509CertificateHolder](data).toASN1Structure
+  val certificate = PEMObjectLoader {
+    case crt: X509CertificateHolder ⇒
+      crt.toASN1Structure
   }
 
-  def certificationRequest(data: String): PKCS10CertificationRequest = decodeAs[PKCS10CertificationRequest](data)
-
-  def publicKey(data: String): SubjectPublicKeyInfo = {
-    Try(decodeAs[SubjectPublicKeyInfo](data))
-      .getOrElse(decodeAs[PEMKeyPair](data).getPublicKeyInfo)
+  val certificationRequest = PEMObjectLoader {
+    case csr: PKCS10CertificationRequest ⇒
+      csr
   }
 
-  def privateKey(data: String): PrivateKeyInfo = {
-    Try(decodeAs[PrivateKeyInfo](data))
-      .getOrElse(decodeAs[PEMKeyPair](data).getPrivateKeyInfo)
+  val publicKey = PEMObjectLoader {
+    case sp: SubjectPublicKeyInfo ⇒
+      sp
+
+    case kp: PEMKeyPair ⇒
+      kp.getPublicKeyInfo
   }
 
-  def keyPair(data: String): TLS.CertificateKeyPair = {
-    val kp = decodeAs[PEMKeyPair](data)
-    new TLS.CertificateKeyPair(kp.getPublicKeyInfo.toAsymmetricKeyParameter, kp.getPrivateKeyInfo.toAsymmetricKeyParameter)
+  val privateKey = PEMObjectLoader {
+    case pk: PrivateKeyInfo ⇒
+      pk
+
+    case kp: PEMKeyPair ⇒
+      kp.getPrivateKeyInfo
   }
 
-  override def fromInputStream(inputStream: InputStream): String = {
-    IOUtils.toString(inputStream)
-  }
-
-  override def fromBytes(bytes: Array[Byte]): String = {
-    new String(bytes)
+  val keyPair = PEMObjectLoader {
+    case kp: PEMKeyPair ⇒
+      new TLS.CertificateKeyPair(kp.getPublicKeyInfo.toAsymmetricKeyParameter, kp.getPrivateKeyInfo.toAsymmetricKeyParameter)
   }
 }

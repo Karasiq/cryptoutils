@@ -9,11 +9,10 @@ import com.karasiq.tls.x509.crl.CRLHolder.RevokedCert
 import com.karasiq.tls.x509.ocsp.OCSP
 import com.karasiq.tls.x509.ocsp.OCSP.Status
 import com.karasiq.tls.{TLS, TLSKeyStore}
+import org.apache.commons.io.IOUtils
 import org.bouncycastle.asn1.x509
 import org.bouncycastle.asn1.x509.CRLReason
 import org.scalatest.{FreeSpec, Matchers}
-
-import scala.util.control.Exception
 
 class X509Test extends FreeSpec with Matchers {
   "Certificate generator" - {
@@ -27,14 +26,14 @@ class X509Test extends FreeSpec with Matchers {
       "should print certificate" in {
         val encoded = PEM.encode(certificationAuthority.certificate)
         println(encoded)
-        assert(PEM.certificate(encoded).getSubject == certificationAuthority.certificate.getSubject)
+        assert(PEM.certificate.fromString(encoded).getSubject == certificationAuthority.certificate.getSubject)
         println(PEM.encode(serverKeySet.ecdsa.get.certificate))
       }
 
       "should print private key" in {
         val encoded = PEM.encode(serverKeySet.rsa.get.key.getPrivate)
         println(encoded)
-        assert(PEM.publicKey(encoded) == serverKeySet.rsa.get.key.getPublic.toSubjectPublicKeyInfo)
+        assert(PEM.publicKey.fromString(encoded) == serverKeySet.rsa.get.key.getPublic.toSubjectPublicKeyInfo)
       }
 
       "should verify extensions" in {
@@ -49,7 +48,7 @@ class X509Test extends FreeSpec with Matchers {
         val request = keyGenerator.createRequest(key.key.toKeyPair, key.certificate.getSubject)
         val encoded = PEM.encode(request)
         println(encoded)
-        assert(PEM.certificationRequest(encoded).getSubject == request.getSubject)
+        PEM.certificationRequest.fromString(encoded).getSubject shouldBe request.getSubject
         val cert = keyGenerator.signRequest(request, certificationAuthority)
         val verifier = CertificateVerifier(CertificateStatusProvider.AlwaysValid, certificationAuthority.certificate)
         assert(verifier.isChainValid(cert.getCertificateList.toList))
@@ -59,8 +58,8 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should read CRL" in {
-        val issuer = PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))
-        X509Utils.getCrlDistributionUrls(PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
+        val issuer = PEM.certificate.fromResource("ocsp-crl-issuer.crt")
+        X509Utils.getCrlDistributionUrls(PEM.certificate.fromResource("ocsp-crl-issuer.crt")).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
         val crl = CRL.fromURL("http://pki.google.com/GIAG2.crl")
         assert(CRL.verify(crl, issuer), "Invalid CRL signature")
         println(crl.getIssuer)
@@ -81,11 +80,11 @@ class X509Test extends FreeSpec with Matchers {
       }
 
       "should read OCSP response" in {
-        val cert = PEM.certificate(PEM.fromResource("ocsp-test.crt"))
-        val issuer = PEM.certificate(PEM.fromResource("ocsp-crl-issuer.crt"))
+        val cert = PEM.certificate.fromResource("ocsp-test.crt")
+        val issuer = PEM.certificate.fromResource("ocsp-crl-issuer.crt")
         val status = OCSP.getStatus(cert, issuer)
         status.exists(_.isRevoked) shouldBe false
-        status.map(_.status) shouldBe Some(OCSP.Status.good())
+        status.map(_.status) shouldBe Some(OCSP.Status.good)
       }
 
       "should create java key store" in {
@@ -93,9 +92,12 @@ class X509Test extends FreeSpec with Matchers {
         keyStore.putCertificate("ca", certificationAuthority.certificate)
         keyStore.putKeySet("test", serverKeySet)
         val outputStream = new ByteArrayOutputStream()
-        Exception.allCatch.andFinally(outputStream.close()) {
+        try {
           keyStore.save(outputStream)
+          outputStream.flush()
           println(s"Key store size: ${outputStream.size()} bytes")
+        } finally {
+          IOUtils.closeQuietly(outputStream)
         }
       }
     }

@@ -2,7 +2,7 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.4.0"
+version := "1.4.1-SNAPSHOT"
 
 isSnapshot := version.value.endsWith("SNAPSHOT")
 
@@ -17,8 +17,6 @@ libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.3.0",
   "org.scalatest" %% "scalatest" % "2.2.4" % "test"
 )
-
-scalacOptions ++= Seq("-optimize", "-deprecation", "-feature")
 
 publishMavenStyle := true
 

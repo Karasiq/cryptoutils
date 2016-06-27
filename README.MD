@@ -1,5 +1,5 @@
-# About
-Provides Scala wrappers for JCA/BouncyCastle classes
+# cryptoutils [![Build Status](https://travis-ci.org/Karasiq/cryptoutils.svg?branch=master)](https://travis-ci.org/Karasiq/cryptoutils)
+Scala wrappers for JCA/BouncyCastle classes
 
 # How to use
 Add to `build.sbt`:
@@ -52,9 +52,9 @@ if (verifier.isChainValid(cert.certificateChain)) {
 
 ## Using PEM files
 ```scala
-val certificationAuthority = PEM.certificate(PEM.fromFile("ca.crt"))
-val myCertificate = PEM.certificate(PEM.fromFile("mycert.crt"))
-val keyPair = PEM.keyPair(PEM.fromFile("mykey.key"))
+val certificationAuthority = PEM.certificate.fromFile("ca.crt")
+val myCertificate = PEM.certificate.fromFile("mycert.crt")
+val keyPair = PEM.keyPair.fromFile("mykey.key")
 
 val certKey = TLS.CertificateKey(new TLS.CertificateChain(Array(myCertificate, certificationAuthority)), keyPair)
 ```

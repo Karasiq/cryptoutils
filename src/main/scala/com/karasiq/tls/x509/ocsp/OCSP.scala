@@ -20,8 +20,6 @@ import org.bouncycastle.operator.DigestCalculator
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder
 import org.bouncycastle.util.encoders.Base64
 
-import scala.util.control.Exception
-
 /**
  * Online Certificate Status Protocol (OCSP) utility
  * @see [[https://en.wikipedia.org/wiki/Online_Certificate_Status_Protocol]]
@@ -32,7 +30,7 @@ object OCSP {
    * @param id Certificate ID
    * @param status Certificate status
    */
-  case class Status(id: CertificateID, status: CertificateStatus = Status.good()) {
+  case class Status(id: CertificateID, status: CertificateStatus = Status.good) {
     def isRevoked: Boolean = status.ne(null) && status.isInstanceOf[RevokedStatus]
   }
 
@@ -41,7 +39,7 @@ object OCSP {
      * OCSP good status
      * @return Good status
      */
-    def good(): CertificateStatus = CertificateStatus.GOOD
+    val good: CertificateStatus = CertificateStatus.GOOD
 
     /**
      * OCSP revoked status
@@ -122,12 +120,14 @@ object OCSP {
     builder.build(X509Utils.contentSigner(signer.key.getPrivate.toPrivateKey), signer.certificateChain.getCertificateList.map(new X509CertificateHolder(_)), new Date())
   }
 
-  private def loadUrl(url: String, request: OCSPReq): OCSPResp = {
+  private def loadUrl(url: String, request: OCSPReq): OCSPResp = concurrent.blocking {
     val encoded = Base64.toBase64String(request.getEncoded)
     val ocspUrl = new URL(if (url.endsWith("/")) url + encoded else url + "/" + encoded)
     val inputStream = ocspUrl.openStream()
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
+    try {
       new OCSPResp(inputStream)
+    } finally {
+      IOUtils.closeQuietly(inputStream)
     }
   }
 

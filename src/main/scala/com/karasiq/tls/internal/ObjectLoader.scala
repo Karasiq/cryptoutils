@@ -7,22 +7,24 @@ import java.nio.file.Path
 
 import org.apache.commons.io.IOUtils
 
-import scala.util.control.Exception
-
-trait ObjectLoader[T] {
+trait ObjectLoader[+T] {
   def fromInputStream(inputStream: InputStream): T
 
   def fromResource(resource: String): T = {
     val stream = getClass.getClassLoader.getResourceAsStream(resource)
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(stream)) {
+    try {
       fromInputStream(stream)
+    } finally {
+      IOUtils.closeQuietly(stream)
     }
   }
 
   def fromFile(file: File): T = concurrent.blocking {
     val inputStream = new FileInputStream(file)
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
+    try {
       fromInputStream(inputStream)
+    } finally {
+      IOUtils.closeQuietly(inputStream)
     }
   }
 
@@ -32,8 +34,10 @@ trait ObjectLoader[T] {
 
   def fromURL(url: URL): T = concurrent.blocking {
     val inputStream = url.openStream()
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
+    try {
       fromInputStream(inputStream)
+    } finally {
+      IOUtils.closeQuietly(inputStream)
     }
   }
 
@@ -43,8 +47,10 @@ trait ObjectLoader[T] {
 
   def fromBytes(bytes: Array[Byte]): T = {
     val inputStream = new ByteArrayInputStream(bytes)
-    Exception.allCatch.andFinally(IOUtils.closeQuietly(inputStream)) {
+    try {
       fromInputStream(inputStream)
+    } finally {
+      IOUtils.closeQuietly(inputStream)
     }
   }
 
