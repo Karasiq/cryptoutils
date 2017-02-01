@@ -1,13 +1,13 @@
-# cryptoutils [![Build Status](https://travis-ci.org/Karasiq/cryptoutils.svg?branch=master)](https://travis-ci.org/Karasiq/cryptoutils) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.11)
+# cryptoutils [![Build Status](https://travis-ci.org/Karasiq/cryptoutils.svg?branch=master)](https://travis-ci.org/Karasiq/cryptoutils) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.12)
 Scala wrappers for JCA/BouncyCastle classes
 
 # How to use
 Add to `build.sbt`:
 ```scala
 libraryDependencies ++= Seq(
-  "org.bouncycastle" % "bcprov-jdk15on" % "1.54",
-  "org.bouncycastle" % "bcpkix-jdk15on" % "1.54",
-  "com.github.karasiq" %% "cryptoutils" % "1.4.1"
+  "org.bouncycastle" % "bcprov-jdk15on" % "1.56",
+  "org.bouncycastle" % "bcpkix-jdk15on" % "1.56",
+  "com.github.karasiq" %% "cryptoutils" % "1.4.2"
 )
 ```
 

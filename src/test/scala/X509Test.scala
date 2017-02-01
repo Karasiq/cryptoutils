@@ -59,8 +59,8 @@ class X509Test extends FreeSpec with Matchers {
 
       "should read CRL" in {
         val issuer = PEM.certificate.fromResource("ocsp-crl-issuer.crt")
-        X509Utils.getCrlDistributionUrls(PEM.certificate.fromResource("ocsp-crl-issuer.crt")).toList shouldBe List("http://g.symcb.com/crls/gtglobal.crl")
-        val crl = CRL.fromURL("http://pki.google.com/GIAG2.crl")
+        X509Utils.getCrlDistributionUrls(issuer).toList shouldBe List("http://crl3.digicert.com/DigiCertGlobalRootCA.crl", "http://crl4.digicert.com/DigiCertGlobalRootCA.crl")
+        val crl = CRL.fromURL("http://crl3.digicert.com/ssca-sha2-g5.crl")
         assert(CRL.verify(crl, issuer), "Invalid CRL signature")
         println(crl.getIssuer)
         println(PEM.encode(crl))

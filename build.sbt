@@ -2,20 +2,22 @@ name := "cryptoutils"
 
 organization := "com.github.karasiq"
 
-version := "1.4.1"
+version := "1.4.2"
 
 isSnapshot := version.value.endsWith("SNAPSHOT")
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.1"
+
+crossScalaVersions := Seq("2.11.8", "2.12.1")
 
 resolvers += "softprops-maven" at "http://dl.bintray.com/content/softprops/maven"
 
 libraryDependencies ++= Seq(
   "commons-io" % "commons-io" % "2.5",
-  "org.bouncycastle" % "bcprov-jdk15on" % "1.54" % "provided",
-  "org.bouncycastle" % "bcpkix-jdk15on" % "1.54" % "provided",
-  "com.typesafe" % "config" % "1.3.0",
-  "org.scalatest" %% "scalatest" % "2.2.4" % "test"
+  "org.bouncycastle" % "bcprov-jdk15on" % "1.56" % "provided",
+  "org.bouncycastle" % "bcpkix-jdk15on" % "1.56" % "provided",
+  "com.typesafe" % "config" % "1.3.1",
+  "org.scalatest" %% "scalatest" % "3.0.1" % "test"
 )
 
 publishMavenStyle := true
