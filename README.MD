@@ -1,4 +1,4 @@
-# cryptoutils [![Build Status](https://travis-ci.org/Karasiq/cryptoutils.svg?branch=master)](https://travis-ci.org/Karasiq/cryptoutils) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.11/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.12)
+# cryptoutils [![Build Status](https://travis-ci.org/Karasiq/cryptoutils.svg?branch=master)](https://travis-ci.org/Karasiq/cryptoutils) [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.12/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.github.karasiq/cryptoutils_2.12)
 Scala wrappers for JCA/BouncyCastle classes
 
 # How to use
