@@ -5,9 +5,9 @@ Scala wrappers for JCA/BouncyCastle classes
 Add to `build.sbt`:
 ```scala
 libraryDependencies ++= Seq(
-  "org.bouncycastle" % "bcprov-jdk15on" % "1.56",
-  "org.bouncycastle" % "bcpkix-jdk15on" % "1.56",
-  "com.github.karasiq" %% "cryptoutils" % "1.4.2"
+  "org.bouncycastle" % "bcprov-jdk15on" % "1.58",
+  "org.bouncycastle" % "bcpkix-jdk15on" % "1.58",
+  "com.github.karasiq" %% "cryptoutils" % "1.4.3"
 )
 ```
 
